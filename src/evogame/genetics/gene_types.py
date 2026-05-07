@@ -60,3 +60,33 @@ class IncompleteDominanceGene(GeneType):
 
     def inherit(self, parent_a_genotype, parent_b_genotype, rng) -> tuple[Allele, Allele]:
         return (rng.choice(parent_a_genotype), rng.choice(parent_b_genotype))
+
+
+class MultiAlleleGene(GeneType):
+    def __init__(
+        self,
+        name: str,
+        alleles: tuple[Allele, ...],
+        dominance_order: tuple[Allele, ...],
+    ):
+        if set(dominance_order) != set(alleles):
+            raise ValueError(
+                f"dominance_order must cover exactly the alleles "
+                f"in {name!r}; got {dominance_order} vs {alleles}"
+            )
+        self.name = name
+        self.alleles = alleles
+        self.dominance_order = dominance_order
+
+    def express(self, genotype: tuple[Allele, Allele]) -> CategoricalPhenotype:
+        for allele in self.dominance_order:
+            if allele in genotype:
+                return CategoricalPhenotype(allele.label or allele.symbol)
+        # Unreachable given the constructor guard, but keeps the type checker happy.
+        raise RuntimeError(f"No allele in genotype {genotype} matched dominance order")
+
+    def random_genotype(self, rng) -> tuple[Allele, Allele]:
+        return (rng.choice(self.alleles), rng.choice(self.alleles))
+
+    def inherit(self, parent_a_genotype, parent_b_genotype, rng) -> tuple[Allele, Allele]:
+        return (rng.choice(parent_a_genotype), rng.choice(parent_b_genotype))
