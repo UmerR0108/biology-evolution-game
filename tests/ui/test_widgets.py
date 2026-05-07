@@ -1,5 +1,4 @@
 import pygame
-import pytest
 
 from evogame.ui.widgets import Button, Slider, Toggle
 
@@ -56,3 +55,16 @@ def test_slider_release_stops_drag():
     s.handle_event(_release_event((50, 10)))
     s.handle_event(_motion_event((90, 10), buttons=(0, 0, 0)))
     assert s.value == 5.0  # not dragged anymore
+
+
+def test_slider_keeps_tracking_when_motion_leaves_rect():
+    s = Slider(pygame.Rect(0, 0, 100, 20), min_value=0.0, max_value=10.0, initial=5.0)
+    s.handle_event(_click_event((50, 10)))
+    s.handle_event(_motion_event((500, 10)))  # way outside rect
+    assert s.value == 10.0
+
+
+def test_slider_motion_without_prior_click_is_noop():
+    s = Slider(pygame.Rect(0, 0, 100, 20), min_value=0.0, max_value=10.0, initial=5.0)
+    s.handle_event(_motion_event((90, 10)))
+    assert s.value == 5.0
