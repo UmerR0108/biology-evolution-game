@@ -90,7 +90,7 @@ def test_allele_frequencies_includes_all_genes():
 
 
 def test_allele_frequencies_homozygous_population():
-    """A population where every creature is homozygous RR has color frequency R=1.0, W=0.0."""
+    """A population where every creature is homozygous RR has color frequency R=1.0."""
     rng = random.Random(0)
     creatures = []
     color_gene = next(g for g in GUPPY_SCHEMA.genes if g.name == "color")
@@ -102,3 +102,15 @@ def test_allele_frequencies_homozygous_population():
     pop = Population(creatures=creatures, carrying_capacity=20, rng=rng)
     color_freqs = pop.allele_frequencies()["color"]
     assert color_freqs[R.symbol] == 1.0
+
+
+def test_allele_frequencies_polygenic_counts_all_loci():
+    """Polygenic genes must tally every locus, not just the first."""
+    rng = random.Random(0)
+    body = next(g for g in GUPPY_SCHEMA.genes if g.name == "body_size")
+    A = body.alleles[0]
+    creatures = [Creature.random(GUPPY_SCHEMA, rng) for _ in range(5)]
+    for c in creatures:
+        c.genotype["body_size"] = ((A, A), (A, A), (A, A))
+    pop = Population(creatures=creatures, carrying_capacity=10, rng=rng)
+    assert pop.allele_frequencies()["body_size"][A.symbol] == 1.0
