@@ -36,13 +36,10 @@ class HUD:
     def gens_per_second(self) -> float:
         return self.slider.value
 
-    def _toggle_predator(self) -> None:
-        self.toggle.state = not self.toggle.state
-        self.sim.set_predator(self.toggle.state)
-
     def _toggle_pause(self) -> None:
         if self.sim.extinct:
             self.sim.reset()
+            self.toggle.state = self.sim.pressure.predator_on
             self.paused = False
             return
         self.paused = not self.paused
