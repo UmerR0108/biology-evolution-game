@@ -1,3 +1,4 @@
+import math
 import random
 
 import pytest
@@ -66,3 +67,38 @@ def test_predator_pressure_skews_population_toward_white():
     colors = [c.phenotype["color"].category for c in pop.creatures]
     # With predator on, "red" should be rare after 20 generations
     assert colors.count("red") < colors.count("white")
+
+
+def test_allele_frequencies_empty_population():
+    pop = _make_population(0)
+    assert pop.allele_frequencies() == {}
+
+
+def test_allele_frequencies_sum_to_one_per_gene():
+    pop = _make_population(20)
+    freqs = pop.allele_frequencies()
+    for gene_name, gene_freqs in freqs.items():
+        total = sum(gene_freqs.values())
+        assert math.isclose(total, 1.0, abs_tol=1e-9), f"{gene_name} sums to {total}"
+
+
+def test_allele_frequencies_includes_all_genes():
+    pop = _make_population(20)
+    freqs = pop.allele_frequencies()
+    expected_genes = {g.name for g in GUPPY_SCHEMA.genes}
+    assert set(freqs.keys()) == expected_genes
+
+
+def test_allele_frequencies_homozygous_population():
+    """A population where every creature is homozygous RR has color frequency R=1.0, W=0.0."""
+    rng = random.Random(0)
+    creatures = []
+    color_gene = next(g for g in GUPPY_SCHEMA.genes if g.name == "color")
+    R = color_gene.allele_a  # R
+    for _ in range(10):
+        c = Creature.random(GUPPY_SCHEMA, rng)
+        c.genotype["color"] = (R, R)
+        creatures.append(c)
+    pop = Population(creatures=creatures, carrying_capacity=20, rng=rng)
+    color_freqs = pop.allele_frequencies()["color"]
+    assert color_freqs[R.symbol] == 1.0
