@@ -33,7 +33,7 @@ class ChartPanel:
         self.canvas.draw()
         raw = self.canvas.buffer_rgba()
         size = self.canvas.get_width_height()
-        self._surface = pygame.image.frombuffer(bytes(raw), size, "RGBA")
+        self._surface = pygame.image.frombuffer(raw, size, "RGBA")
 
     def update(self, log: GenerationLog) -> None:
         if len(log) == 0:
@@ -43,7 +43,7 @@ class ChartPanel:
         self.figure.clear()
         ax = self.figure.add_subplot(1, 1, 1)
         gens = [r.gen for r in log.records]
-        for allele, values in sorted(series.items()):
+        for allele, values in series.items():
             ax.plot(gens, values, label=allele, linewidth=2)
         ax.set_ylim(0, 1)
         ax.set_xlabel("Generation")

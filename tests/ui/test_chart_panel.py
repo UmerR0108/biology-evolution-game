@@ -1,5 +1,4 @@
 import pygame
-import pytest
 
 from evogame.sim.recorder import GenerationLog
 from evogame.ui.chart_panel import ChartPanel
@@ -35,3 +34,18 @@ def test_chart_panel_returns_surface_on_draw(pygame_surface):
     # smoke: the panel rect area should differ from a freshly cleared surface
     other = pygame.Surface((200, 200))
     assert pygame_surface.get_at((50, 50)) != other.get_at((50, 50))
+
+
+def test_chart_panel_axes_have_labels_and_legend():
+    log = GenerationLog()
+    log.record(0, {"color": {"R": 0.5, "W": 0.5}}, False, 20)
+    log.record(1, {"color": {"R": 0.7, "W": 0.3}}, True, 18)
+    panel = ChartPanel(pygame.Rect(0, 0, 400, 300))
+    panel.update(log)
+    ax = panel.figure.axes[0]
+    assert ax.get_xlabel() == "Generation"
+    assert ax.get_ylabel() == "Allele frequency"
+    assert ax.get_title() == "color alleles"
+    assert ax.get_ylim() == (0, 1)
+    assert ax.get_legend() is not None
+    assert len(ax.get_lines()) == 2
