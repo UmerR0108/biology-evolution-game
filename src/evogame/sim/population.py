@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+import random
+from dataclasses import dataclass
 from typing import Protocol
 
 from evogame.genetics import Creature
@@ -12,7 +13,7 @@ class Pressure(Protocol):
 class Population:
     creatures: list[Creature]
     carrying_capacity: int
-    rng: object  # random.Random; keeping loose for typing simplicity
+    rng: random.Random
     mutation_rate: float = 0.001
 
     def __len__(self) -> int:

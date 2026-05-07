@@ -43,6 +43,16 @@ def test_offspring_share_schema():
     assert all(c.schema is GUPPY_SCHEMA for c in next_pop.creatures)
 
 
+def test_zero_total_fitness_causes_extinction():
+    class _ZeroPressure:
+        def fitness(self, creature):
+            return 0.0
+
+    pop = _make_population(10)
+    next_pop = pop.step_generation(_ZeroPressure())
+    assert len(next_pop) == 0
+
+
 def test_predator_pressure_skews_population_toward_white():
     """Under predator pressure for many generations, white alleles should dominate."""
     rng = random.Random(42)
