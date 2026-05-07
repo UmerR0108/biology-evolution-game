@@ -23,7 +23,7 @@ def format_creature(label: str, creature: Creature) -> str:
         p = pheno[gene.name]
         # Numeric vs categorical — duck-type via attribute presence.
         value = getattr(p, "category", None) or f"{p.value:.1f}"
-        lines.append(f"  {gene.name}: {_format_entry(entry)} → {value}")
+        lines.append(f"  {gene.name}: {_format_entry(entry)} -> {value}")
     return "\n".join(lines)
 
 
@@ -48,7 +48,7 @@ def run_demo(rng: random.Random, mutation_rate: float) -> tuple[Creature, Creatu
         print()
         print(f"Mutations this generation: {len(child.mutations)}")
         for ev in child.mutations:
-            print(f"  {ev.gene_name}: {ev.old.symbol} → {ev.new.symbol}")
+            print(f"  {ev.gene_name}: {ev.old.symbol} -> {ev.new.symbol}")
     return parent_a, parent_b, child
 
 
