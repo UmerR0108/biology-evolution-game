@@ -1,7 +1,6 @@
 import random
 
 import pygame
-import pytest
 
 from evogame.genetics import GUPPY_SCHEMA, Creature
 from evogame.ui.world_panel import WorldPanel
