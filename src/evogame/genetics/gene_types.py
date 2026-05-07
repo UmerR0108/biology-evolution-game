@@ -37,3 +37,26 @@ class DominantRecessiveGene(GeneType):
 
     def inherit(self, parent_a_genotype, parent_b_genotype, rng) -> tuple[Allele, Allele]:
         return (rng.choice(parent_a_genotype), rng.choice(parent_b_genotype))
+
+
+class IncompleteDominanceGene(GeneType):
+    def __init__(self, name: str, allele_a: Allele, allele_b: Allele, blend_label: str):
+        self.name = name
+        self.allele_a = allele_a
+        self.allele_b = allele_b
+        self.blend_label = blend_label
+        self.alleles = (allele_a, allele_b)
+
+    def express(self, genotype: tuple[Allele, Allele]) -> CategoricalPhenotype:
+        a, b = genotype
+        if a == b == self.allele_a:
+            return CategoricalPhenotype(self.allele_a.label or self.allele_a.symbol)
+        if a == b == self.allele_b:
+            return CategoricalPhenotype(self.allele_b.label or self.allele_b.symbol)
+        return CategoricalPhenotype(self.blend_label)
+
+    def random_genotype(self, rng) -> tuple[Allele, Allele]:
+        return (rng.choice(self.alleles), rng.choice(self.alleles))
+
+    def inherit(self, parent_a_genotype, parent_b_genotype, rng) -> tuple[Allele, Allele]:
+        return (rng.choice(parent_a_genotype), rng.choice(parent_b_genotype))
