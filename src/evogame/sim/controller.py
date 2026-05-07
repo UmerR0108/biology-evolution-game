@@ -1,3 +1,5 @@
+import random
+
 from evogame.genetics import Creature, SpeciesSchema
 from evogame.sim.population import Population
 from evogame.sim.pressure import PredatorPressure
@@ -10,7 +12,7 @@ class SimController:
         schema: SpeciesSchema,
         initial_size: int,
         carrying_capacity: int,
-        rng,
+        rng: random.Random,
         mutation_rate: float = 0.001,
     ):
         self.schema = schema
@@ -50,6 +52,7 @@ class SimController:
         self.pressure = PredatorPressure(predator_on=on)
 
     def reset(self) -> None:
+        self.pressure = PredatorPressure(predator_on=False)
         self.population = self._fresh_population()
         self.log = GenerationLog()
         self.generation = 0

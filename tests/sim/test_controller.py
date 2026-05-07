@@ -31,8 +31,10 @@ def test_extinction_freezes_simulation():
     sim.tick()
     assert sim.extinct
     gen_before = sim.generation
+    log_len_before = len(sim.log)
     sim.tick()
-    assert sim.generation == gen_before  # frozen
+    assert sim.generation == gen_before
+    assert len(sim.log) == log_len_before
 
 
 def test_reset_restores_initial_state():
@@ -44,3 +46,11 @@ def test_reset_restores_initial_state():
     assert len(sim.population) == 10
     assert not sim.extinct
     assert len(sim.log) == 1
+
+
+def test_reset_restores_predator_off():
+    sim = SimController(schema=GUPPY_SCHEMA, initial_size=10, carrying_capacity=20, rng=random.Random(0))
+    sim.set_predator(True)
+    sim.reset()
+    assert sim.pressure.predator_on is False
+    assert sim.log.records[0].predator_on is False
