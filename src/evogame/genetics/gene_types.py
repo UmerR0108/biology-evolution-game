@@ -90,3 +90,33 @@ class MultiAlleleGene(GeneType):
 
     def inherit(self, parent_a_genotype, parent_b_genotype, rng) -> tuple[Allele, Allele]:
         return (rng.choice(parent_a_genotype), rng.choice(parent_b_genotype))
+
+
+class PolygenicGene(GeneType):
+    def __init__(
+        self,
+        name: str,
+        alleles: tuple[Allele, ...],
+        loci: int,
+        value_of: dict[Allele, float],
+    ):
+        self.name = name
+        self.alleles = alleles
+        self.loci = loci
+        self.value_of = value_of
+
+    def express(self, genotype: tuple[tuple[Allele, Allele], ...]) -> NumericPhenotype:
+        total = sum(self.value_of[a] for pair in genotype for a in pair)
+        return NumericPhenotype(value=total)
+
+    def random_genotype(self, rng) -> tuple[tuple[Allele, Allele], ...]:
+        return tuple(
+            (rng.choice(self.alleles), rng.choice(self.alleles))
+            for _ in range(self.loci)
+        )
+
+    def inherit(self, parent_a_genotype, parent_b_genotype, rng):
+        return tuple(
+            (rng.choice(pa), rng.choice(pb))
+            for pa, pb in zip(parent_a_genotype, parent_b_genotype, strict=True)
+        )
