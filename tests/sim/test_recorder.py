@@ -14,6 +14,22 @@ def test_record_appends():
     assert log.records[0].population_size == 20
 
 
+def test_record_does_not_alias_caller_dict():
+    log = GenerationLog()
+    freqs = {"color": {"R": 0.5, "W": 0.5}}
+    log.record(gen=0, allele_freqs=freqs, predator_on=False, population_size=20)
+    freqs["color"]["R"] = 999.0
+    assert log.records[0].allele_freqs["color"]["R"] == 0.5
+
+
+def test_frequencies_over_time_preserves_first_seen_order():
+    log = GenerationLog()
+    log.record(0, {"color": {"R": 0.5, "W": 0.5}}, False, 20)
+    log.record(1, {"color": {"R": 0.4, "W": 0.4, "M": 0.2}}, False, 20)
+    series = log.frequencies_over_time("color")
+    assert list(series.keys()) == ["R", "W", "M"]
+
+
 def test_frequencies_over_time_basic():
     log = GenerationLog()
     log.record(0, {"color": {"R": 0.5, "W": 0.5}}, False, 20)
