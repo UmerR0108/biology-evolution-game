@@ -33,3 +33,16 @@ class Creature:
     @property
     def phenotype(self) -> dict[str, Phenotype]:
         return {g.name: g.express(self.genotype[g.name]) for g in self.schema.genes}
+
+    def breed(self, mate: "Creature", rng, mutation_rate: float = 0.001) -> "Creature":
+        if self.schema is not mate.schema:
+            raise ValueError(
+                f"Cannot breed creatures of different species "
+                f"({self.schema.name!r} vs {mate.schema.name!r}); must be same species"
+            )
+        offspring_genotype = {
+            g.name: g.inherit(self.genotype[g.name], mate.genotype[g.name], rng)
+            for g in self.schema.genes
+        }
+        # Mutation handling lands in the next task.
+        return Creature(self.schema, offspring_genotype)
