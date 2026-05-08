@@ -85,3 +85,60 @@ class VisibleFish:
             speed=rng.uniform(8.0, 18.0),
             next_turn_in_ms=rng.uniform(1000.0, 2500.0),
         )
+
+
+class PondView:
+    def __init__(self, bounds: pygame.Rect, max_visible: int, rng: random.Random):
+        self.bounds = bounds
+        self.max_visible = max_visible
+        self.rng = rng
+        self.fish: list[VisibleFish] = []
+
+    def _random_pos_in_bounds(self) -> tuple[float, float]:
+        margin = 6
+        x = self.rng.uniform(self.bounds.left + margin, self.bounds.right - margin)
+        y = self.rng.uniform(self.bounds.top + margin, self.bounds.bottom - margin)
+        return (x, y)
+
+    def refresh(self, population: list[Creature]) -> None:
+        if not population:
+            self.fish = []
+            return
+        n = min(len(population), self.max_visible)
+        sampled = self.rng.sample(population, n)
+        self.fish = [
+            VisibleFish.from_creature(c, self._random_pos_in_bounds(), self.rng)
+            for c in sampled
+        ]
+
+    def update(self, dt_ms: float) -> None:
+        margin = 6
+        for f in self.fish:
+            f.next_turn_in_ms -= dt_ms
+            if f.next_turn_in_ms <= 0:
+                f.heading = self.rng.uniform(0, 2 * math.pi)
+                f.next_turn_in_ms = self.rng.uniform(1000.0, 2500.0)
+            dt = dt_ms / 1000.0
+            nx = f.pos[0] + math.cos(f.heading) * f.speed * dt
+            ny = f.pos[1] + math.sin(f.heading) * f.speed * dt
+            # Reflect off pond bounds.
+            if nx < self.bounds.left + margin or nx > self.bounds.right - margin:
+                f.heading = math.pi - f.heading
+                nx = max(self.bounds.left + margin, min(self.bounds.right - margin, nx))
+            if ny < self.bounds.top + margin or ny > self.bounds.bottom - margin:
+                f.heading = -f.heading
+                ny = max(self.bounds.top + margin, min(self.bounds.bottom - margin, ny))
+            f.pos = (nx, ny)
+
+    def draw(self, surface: pygame.Surface, origin: tuple[int, int]) -> None:
+        ox, oy = origin
+        for f in self.fish:
+            sprite = tint_fish(f.color)
+            if f.scale != 1.0:
+                w, h = sprite.get_size()
+                sprite = pygame.transform.scale(sprite, (max(1, int(w * f.scale)), max(1, int(h * f.scale))))
+            # Flip horizontally based on heading direction
+            if math.cos(f.heading) < 0:
+                sprite = pygame.transform.flip(sprite, True, False)
+            sw, sh = sprite.get_size()
+            surface.blit(sprite, (int(ox + f.pos[0] - sw / 2), int(oy + f.pos[1] - sh / 2)))
