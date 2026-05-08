@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 import pygame
 
 from evogame.ui.assets import load_tileset
 from evogame.ui.tilemap import TILE_PIXELS, build_forest_scene
+
+if TYPE_CHECKING:
+    from evogame.ui.player import Player
 
 
 class WorldPanel:
@@ -19,7 +24,7 @@ class WorldPanel:
             }
         return self._object_surfs
 
-    def draw(self, surface: pygame.Surface) -> None:
+    def draw(self, surface: pygame.Surface, player: "Player | None" = None) -> None:
         self.scene.tilemap.draw(surface, origin=(self.rect.left, self.rect.top))
         objs = self._ensure_objects()
         for obj in self.scene.objects:
@@ -29,3 +34,6 @@ class WorldPanel:
             x = self.rect.left + obj.col * TILE_PIXELS
             y = self.rect.top + obj.row * TILE_PIXELS
             surface.blit(sprite, (x, y))
+        if player is not None:
+            sprite = player._ensure_sprite()
+            surface.blit(sprite, (self.rect.left + player.pos[0], self.rect.top + player.pos[1]))

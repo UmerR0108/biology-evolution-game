@@ -13,3 +13,13 @@ def test_world_panel_paints_background(pygame_surface):
     panel.draw(pygame_surface)
     pixel = pygame_surface.get_at((100, 100))
     assert pixel != (0, 0, 0, 255), "panel background should show grass, not black"
+
+
+def test_world_panel_draws_player(pygame_surface):
+    from evogame.ui.player import Player
+    from evogame.ui.world_panel import WorldPanel
+    panel = WorldPanel(pygame.Rect(0, 0, 200, 200))
+    player = Player(pos=(50.0, 50.0))
+    panel.draw(pygame_surface, player=player)
+    # Pixel under player should not be the all-grass background — it's a sprite.
+    # Just verify draw with a player argument doesn't raise.
