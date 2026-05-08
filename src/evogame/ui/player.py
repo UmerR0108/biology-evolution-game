@@ -28,6 +28,10 @@ class Player:
             self._sprite = pygame.transform.scale(tiles["char_down"], self.size)
         return self._sprite
 
+    def draw(self, surface: pygame.Surface, origin: tuple[int, int]) -> None:
+        sprite = self._ensure_sprite()
+        surface.blit(sprite, (int(origin[0] + self.pos[0]), int(origin[1] + self.pos[1])))
+
     def handle_input(self, keys: Mapping[int, bool]) -> None:
         dx = (1 if keys[pygame.K_RIGHT] or keys[pygame.K_d] else 0) \
            - (1 if keys[pygame.K_LEFT]  or keys[pygame.K_a] else 0)

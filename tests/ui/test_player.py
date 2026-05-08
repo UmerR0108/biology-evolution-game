@@ -52,6 +52,11 @@ def test_player_update_clamps_to_scene(pygame_surface):
     assert p.pos[0] == 0.0  # clamped
 
 
+def test_player_draw_does_not_raise(pygame_surface):
+    p = Player(pos=(50.0, 50.0))
+    p.draw(pygame_surface, origin=(0, 0))
+
+
 def test_player_cannot_walk_into_pond(pygame_surface):
     from evogame.ui.tilemap import build_forest_scene, TILE_PIXELS
     scene = build_forest_scene()

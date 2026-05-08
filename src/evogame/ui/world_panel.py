@@ -82,8 +82,7 @@ class WorldPanel:
         # Pond fish (after objects, before player so fish go behind player).
         self.pond_view.draw(surface, origin=(0, 0))
         if player is not None:
-            sprite = player._ensure_sprite()
-            surface.blit(sprite, (self.rect.left + player.pos[0], self.rect.top + player.pos[1]))
+            player.draw(surface, origin=(self.rect.left, self.rect.top))
         if player is not None and font is not None and self.cottage_in_range(player):
             cottage = next((o for o in self.scene.objects if o.kind == "cottage"), None)
             if cottage is not None:
