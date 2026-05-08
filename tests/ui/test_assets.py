@@ -27,3 +27,24 @@ def test_load_bunny_frames_returns_per_direction_lists(pygame_surface):
         assert len(frames[direction]) >= 1
         for surf in frames[direction]:
             assert isinstance(surf, pygame.Surface)
+
+
+def test_load_player_walk_frames_returns_independent_surfaces(pygame_surface):
+    from evogame.ui.assets import load_player_walk_frames
+    frames = load_player_walk_frames()
+    for direction in ("down", "up", "left", "right"):
+        assert direction in frames, f"missing direction: {direction}"
+        assert len(frames[direction]) >= 2, f"{direction} should have >=2 walk frames"
+        for surf in frames[direction]:
+            assert isinstance(surf, pygame.Surface)
+            w, h = surf.get_size()
+            assert w > 0 and h > 0
+    # Independence check: mutating one direction must not affect others.
+    assert frames["down"][0] is not frames["up"][0]
+
+
+def test_load_bunny_frames_returns_independent_surfaces(pygame_surface):
+    from evogame.ui.assets import load_bunny_frames
+    frames = load_bunny_frames()
+    assert frames["down"][0] is not frames["up"][0], \
+        "bunny frames must not be aliased across directions"
