@@ -1,3 +1,4 @@
+import pygame
 import pytest
 
 from evogame.ui.app import App
@@ -30,4 +31,20 @@ def test_app_runs_for_n_generations():
     app = App(seed=0)
     app.run_for_generations(5, max_frames=200)
     assert app.sim.generation == 5
+    app.shutdown()
+
+
+def test_app_does_not_advance_when_extinct():
+    app = App(seed=0)
+    app.sim.extinct = True
+    app.step_one_frame(2000)
+    assert app.sim.generation == 0
+    app.shutdown()
+
+
+def test_app_quit_event_stops_running():
+    app = App(seed=0)
+    pygame.event.post(pygame.event.Event(pygame.QUIT))
+    app.step_one_frame(0)
+    assert app.running is False
     app.shutdown()
