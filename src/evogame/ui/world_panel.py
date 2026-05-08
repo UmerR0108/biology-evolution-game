@@ -36,7 +36,7 @@ class WorldPanel:
         py = player.pos[1] + player.size[1] / 2
         return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5 <= self.COTTAGE_INTERACT_RADIUS
 
-    def draw(self, surface: pygame.Surface, player: "Player | None" = None) -> None:
+    def draw(self, surface: pygame.Surface, player: "Player | None" = None, font: pygame.font.Font | None = None) -> None:
         self.scene.tilemap.draw(surface, origin=(self.rect.left, self.rect.top))
         objs = self._ensure_objects()
         for obj in self.scene.objects:
@@ -49,3 +49,13 @@ class WorldPanel:
         if player is not None:
             sprite = player._ensure_sprite()
             surface.blit(sprite, (self.rect.left + player.pos[0], self.rect.top + player.pos[1]))
+        if player is not None and font is not None and self.cottage_in_range(player):
+            cottage = next((o for o in self.scene.objects if o.kind == "cottage"), None)
+            if cottage is not None:
+                text = font.render("Press E", True, (255, 255, 255))
+                x = self.rect.left + cottage.col * TILE_PIXELS
+                y = self.rect.top + cottage.row * TILE_PIXELS - 18
+                shadow = pygame.Surface((text.get_width() + 6, text.get_height() + 4), pygame.SRCALPHA)
+                shadow.fill((0, 0, 0, 160))
+                surface.blit(shadow, (x, y))
+                surface.blit(text, (x + 3, y + 2))

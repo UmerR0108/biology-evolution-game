@@ -36,3 +36,14 @@ def test_cottage_in_range_when_player_close(pygame_surface):
     far = Player(pos=(0.0, 0.0))
     assert panel.cottage_in_range(near) is True
     assert panel.cottage_in_range(far) is False
+
+
+def test_world_panel_draws_press_e_when_in_range(pygame_surface):
+    from evogame.ui.player import Player
+    from evogame.ui.world_panel import WorldPanel
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    cottage = next(o for o in panel.scene.objects if o.kind == "cottage")
+    near = Player(pos=(cottage.col * 32, cottage.row * 32))
+    font = pygame.font.SysFont("arial", 12)
+    panel.draw(pygame_surface, player=near, font=font)
+    # No assertion on the text pixels — just that calling with font + in-range player doesn't raise.
