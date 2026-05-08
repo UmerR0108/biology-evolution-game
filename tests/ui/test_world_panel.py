@@ -23,3 +23,16 @@ def test_world_panel_draws_player(pygame_surface):
     panel.draw(pygame_surface, player=player)
     # Pixel under player should not be the all-grass background — it's a sprite.
     # Just verify draw with a player argument doesn't raise.
+
+
+def test_cottage_in_range_when_player_close(pygame_surface):
+    from evogame.ui.player import Player
+    from evogame.ui.world_panel import WorldPanel
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    cottage = next(o for o in panel.scene.objects if o.kind == "cottage")
+    cx = cottage.col * 32 + 16
+    cy = cottage.row * 32 + 16
+    near = Player(pos=(cx - 16.0, cy - 16.0))
+    far = Player(pos=(0.0, 0.0))
+    assert panel.cottage_in_range(near) is True
+    assert panel.cottage_in_range(far) is False

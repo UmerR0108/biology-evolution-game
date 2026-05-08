@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 
 class WorldPanel:
+    COTTAGE_INTERACT_RADIUS = 64
+
     def __init__(self, rect: pygame.Rect):
         self.rect = rect
         self.scene = build_forest_scene()
@@ -23,6 +25,16 @@ class WorldPanel:
                 "cottage": pygame.transform.scale(raw["cottage"], (TILE_PIXELS * 4, TILE_PIXELS * 3)),
             }
         return self._object_surfs
+
+    def cottage_in_range(self, player: "Player") -> bool:
+        cottage = next((o for o in self.scene.objects if o.kind == "cottage"), None)
+        if cottage is None:
+            return False
+        cx = cottage.col * TILE_PIXELS + TILE_PIXELS * 2
+        cy = cottage.row * TILE_PIXELS + TILE_PIXELS * 1.5
+        px = player.pos[0] + player.size[0] / 2
+        py = player.pos[1] + player.size[1] / 2
+        return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5 <= self.COTTAGE_INTERACT_RADIUS
 
     def draw(self, surface: pygame.Surface, player: "Player | None" = None) -> None:
         self.scene.tilemap.draw(surface, origin=(self.rect.left, self.rect.top))
