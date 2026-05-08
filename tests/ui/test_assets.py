@@ -39,12 +39,18 @@ def test_load_player_walk_frames_returns_independent_surfaces(pygame_surface):
             assert isinstance(surf, pygame.Surface)
             w, h = surf.get_size()
             assert w > 0 and h > 0
-    # Independence check: mutating one direction must not affect others.
-    assert frames["down"][0] is not frames["up"][0]
+    # Mutate-and-read independence check.
+    sentinel = (255, 0, 255, 255)
+    before_up = frames["up"][0].get_at((0, 0))
+    frames["down"][0].fill(sentinel)
+    assert frames["up"][0].get_at((0, 0)) == before_up, \
+        "mutating frames['down'] must not affect frames['up']"
 
 
 def test_load_bunny_frames_returns_independent_surfaces(pygame_surface):
-    from evogame.ui.assets import load_bunny_frames
     frames = load_bunny_frames()
-    assert frames["down"][0] is not frames["up"][0], \
-        "bunny frames must not be aliased across directions"
+    sentinel = (255, 0, 255, 255)
+    before_up = frames["up"][0].get_at((0, 0))
+    frames["down"][0].fill(sentinel)
+    assert frames["up"][0].get_at((0, 0)) == before_up, \
+        "mutating bunny frames['down'] must not affect frames['up']"

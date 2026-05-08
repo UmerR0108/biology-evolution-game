@@ -69,6 +69,9 @@ _TILESET_RECTS: dict[str, tuple[int, int, int, int]] = {
 # corners; varying the corners would need explicit edge tiles which
 # Water+.png doesn't expose in a 4-corner layout.
 _WATER_TILE_RECT: tuple[int, int, int, int] = (48, 0, _TILE, _TILE)
+# TODO: replace with NW/NE/SW/SE shoreline edge tiles from Water+.png
+# when pond rendering needs visible corners. For now all 4 keys point
+# at the same clean wave tile.
 _WATER_KEYS: tuple[str, ...] = ("water_nw", "water_ne", "water_sw", "water_se")
 
 # Lablady spritesheet layout. Cells are 32x32 with a 1-2px yellow guide
@@ -79,8 +82,9 @@ _LABLADY_SPRITE = 28
 _LABLADY_TRIM = 2
 
 # Block 3 (zero-indexed: 2) of the four horizontal blocks holds the WALK
-# rows. Yellow column runs land at x=564 / 596 / 628 / 660 / 692 / 724
-# / 755, so the block origin is 564 and each cell is 32px wide.
+# rows. Yellow column origins step by 32: 564, 596, 628, 660 (we slice
+# these for WALK frames 0-3). Subsequent columns continue the pattern
+# past 660 but the WALK row is only 4 frames wide.
 _LABLADY_WALK_BLOCK_X = 564
 
 # Within the WALK block, rows 0..3 are right / left / up / down (in that
@@ -200,12 +204,11 @@ def load_bunny_frames() -> dict[str, list[pygame.Surface]]:
     frames does not corrupt the others.
     """
     sheet = _load_bunny_image()
-    base_frames = [
-        sheet.subsurface(pygame.Rect(*rect)).copy()
-        for rect in _BUNNY_FRAME_RECTS
-    ]
     return {
-        direction: [frame.copy() for frame in base_frames]
+        direction: [
+            sheet.subsurface(pygame.Rect(*rect)).copy()
+            for rect in _BUNNY_FRAME_RECTS
+        ]
         for direction in _BUNNY_DIRECTIONS
     }
 
