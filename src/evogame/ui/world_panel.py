@@ -1,34 +1,31 @@
 import pygame
 
-from evogame.genetics import Creature
-
-_POND = (60, 110, 150)
-_COLOR_MAP = {
-    "red": (220, 40, 40),
-    "pink": (240, 140, 160),
-    "white": (240, 240, 240),
-}
-_FALLBACK = (128, 128, 128)
+from evogame.ui.assets import load_tileset
+from evogame.ui.tilemap import TILE_PIXELS, build_forest_scene
 
 
 class WorldPanel:
     def __init__(self, rect: pygame.Rect):
         self.rect = rect
+        self.scene = build_forest_scene()
+        self._object_surfs: dict[str, pygame.Surface] | None = None
 
-    def draw(self, surface: pygame.Surface, creatures: list[Creature]) -> None:
-        pygame.draw.rect(surface, _POND, self.rect)
-        if not creatures:
-            return
-        cols = max(1, int(len(creatures) ** 0.5) + 1)
-        cell = max(1, (self.rect.width - 20) // cols)
-        for i, creature in enumerate(creatures):
-            col = i % cols
-            row = i // cols
-            cx = self.rect.left + 10 + col * cell + cell // 2
-            cy = self.rect.top + 10 + row * cell + cell // 2
-            if cy > self.rect.bottom - 10:
-                break
-            phenotype = creature.phenotype
-            color = _COLOR_MAP.get(phenotype["color"].category, _FALLBACK)
-            radius = max(3, int(4 + phenotype["body_size"].value * 0.5))
-            pygame.draw.circle(surface, color, (cx, cy), radius)
+    def _ensure_objects(self) -> dict[str, pygame.Surface]:
+        if self._object_surfs is None:
+            raw = load_tileset()
+            self._object_surfs = {
+                "tree": pygame.transform.scale(raw["tree"], (TILE_PIXELS * 2, TILE_PIXELS * 2)),
+                "cottage": pygame.transform.scale(raw["cottage"], (TILE_PIXELS * 4, TILE_PIXELS * 3)),
+            }
+        return self._object_surfs
+
+    def draw(self, surface: pygame.Surface) -> None:
+        self.scene.tilemap.draw(surface, origin=(self.rect.left, self.rect.top))
+        objs = self._ensure_objects()
+        for obj in self.scene.objects:
+            sprite = objs.get(obj.kind)
+            if sprite is None:
+                continue
+            x = self.rect.left + obj.col * TILE_PIXELS
+            y = self.rect.top + obj.row * TILE_PIXELS
+            surface.blit(sprite, (x, y))

@@ -67,7 +67,7 @@ class App:
 
     def _render(self) -> None:
         self.screen.fill((10, 10, 15))
-        self.world_panel.draw(self.screen, self.sim.population.creatures)
+        self.world_panel.draw(self.screen)
         self.chart_panel.draw(self.screen)
         self.hud.draw(self.screen, self.font)
         pygame.display.flip()
