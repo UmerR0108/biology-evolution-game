@@ -45,6 +45,7 @@ class App:
         scene = self.world_panel.scene
         self.player = Player(pos=(scene.tilemap.pixel_width / 2,
                                   scene.tilemap.pixel_height * 0.7))
+        self.world_panel.pond_view.refresh(self.sim.population.creatures)
         self._gen_timer_ms = 0.0
 
     def shutdown(self) -> None:
@@ -84,8 +85,11 @@ class App:
                 self._gen_timer_ms -= interval_ms
                 self.sim.tick()
                 self.journal.on_sim_tick()
+                self.world_panel.pond_view.refresh(self.sim.population.creatures)
                 if self.sim.extinct:
                     break
+        # Drift fish every frame (even when paused or journal open).
+        self.world_panel.pond_view.update(dt_ms)
         self._render()
 
     def _render(self) -> None:

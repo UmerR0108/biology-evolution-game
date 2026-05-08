@@ -1,8 +1,10 @@
+import random as _rand_module
 from typing import TYPE_CHECKING
 
 import pygame
 
 from evogame.ui.assets import load_tileset
+from evogame.ui.pond import PondView
 from evogame.ui.tilemap import TILE_PIXELS, build_forest_scene
 
 if TYPE_CHECKING:
@@ -12,10 +14,19 @@ if TYPE_CHECKING:
 class WorldPanel:
     COTTAGE_INTERACT_RADIUS = 64
 
-    def __init__(self, rect: pygame.Rect):
+    def __init__(self, rect: pygame.Rect, pond_rng: _rand_module.Random | None = None):
         self.rect = rect
         self.scene = build_forest_scene()
         self._object_surfs: dict[str, pygame.Surface] | None = None
+        self.pond_view = PondView(
+            bounds=self._pond_bounds_in_panel(),
+            max_visible=10,
+            rng=pond_rng or _rand_module.Random(0),
+        )
+
+    def _pond_bounds_in_panel(self) -> pygame.Rect:
+        b = self.scene.pond_pixel_bounds()
+        return pygame.Rect(self.rect.left + b.left, self.rect.top + b.top, b.width, b.height)
 
     def _ensure_objects(self) -> dict[str, pygame.Surface]:
         if self._object_surfs is None:
@@ -46,6 +57,8 @@ class WorldPanel:
             x = self.rect.left + obj.col * TILE_PIXELS
             y = self.rect.top + obj.row * TILE_PIXELS
             surface.blit(sprite, (x, y))
+        # Pond fish (after objects, before player so fish go behind player).
+        self.pond_view.draw(surface, origin=(0, 0))
         if player is not None:
             sprite = player._ensure_sprite()
             surface.blit(sprite, (self.rect.left + player.pos[0], self.rect.top + player.pos[1]))
