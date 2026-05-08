@@ -48,3 +48,47 @@ def test_app_quit_event_stops_running():
     app.step_one_frame(0)
     assert app.running is False
     app.shutdown()
+
+
+def test_app_j_key_toggles_journal():
+    app = App(seed=0)
+    assert app.journal.open is False
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_j}))
+    app.step_one_frame(0)
+    assert app.journal.open is True
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_j}))
+    app.step_one_frame(0)
+    assert app.journal.open is False
+    app.shutdown()
+
+
+def test_app_escape_closes_journal_when_open():
+    app = App(seed=0)
+    app.journal.open = True
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_ESCAPE}))
+    app.step_one_frame(0)
+    assert app.journal.open is False
+    assert app.running is True
+    app.shutdown()
+
+
+def test_app_escape_quits_when_journal_closed():
+    app = App(seed=0)
+    assert app.journal.open is False
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_ESCAPE}))
+    app.step_one_frame(0)
+    assert app.running is False
+    app.shutdown()
+
+
+def test_app_e_near_cottage_opens_journal():
+    app = App(seed=0)
+    # Move player adjacent to cottage.
+    cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
+    from evogame.ui.tilemap import TILE_PIXELS
+    app.player.pos = (cottage.col * TILE_PIXELS + 16.0, cottage.row * TILE_PIXELS + 16.0)
+    assert app.world_panel.cottage_in_range(app.player) is True
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+    assert app.journal.open is True
+    app.shutdown()
