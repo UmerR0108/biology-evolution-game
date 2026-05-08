@@ -29,10 +29,10 @@ class Player:
         return self._sprite
 
     def handle_input(self, keys: Mapping[int, bool]) -> None:
-        dx = (1 if keys.get(pygame.K_RIGHT) or keys.get(pygame.K_d) else 0) \
-           - (1 if keys.get(pygame.K_LEFT)  or keys.get(pygame.K_a) else 0)
-        dy = (1 if keys.get(pygame.K_DOWN)  or keys.get(pygame.K_s) else 0) \
-           - (1 if keys.get(pygame.K_UP)    or keys.get(pygame.K_w) else 0)
+        dx = (1 if keys[pygame.K_RIGHT] or keys[pygame.K_d] else 0) \
+           - (1 if keys[pygame.K_LEFT]  or keys[pygame.K_a] else 0)
+        dy = (1 if keys[pygame.K_DOWN]  or keys[pygame.K_s] else 0) \
+           - (1 if keys[pygame.K_UP]    or keys[pygame.K_w] else 0)
         if dx == 0 and dy == 0:
             self.velocity = (0.0, 0.0)
             return

@@ -6,6 +6,7 @@ from evogame.genetics import GUPPY_SCHEMA
 from evogame.sim.controller import SimController
 from evogame.ui.chart_panel import ChartPanel
 from evogame.ui.hud import HUD
+from evogame.ui.player import Player
 from evogame.ui.world_panel import WorldPanel
 
 _WINDOW_W = 1000
@@ -41,6 +42,11 @@ class App:
         self.chart_panel = ChartPanel(chart_rect)
         self.chart_panel.update(self.sim.log)
 
+        scene = self.world_panel.scene
+        self.player = Player(
+            pos=(scene.tilemap.pixel_width / 2, scene.tilemap.pixel_height * 0.7)
+        )
+
         self._gen_timer_ms = 0.0
 
     def shutdown(self) -> None:
@@ -54,6 +60,9 @@ class App:
 
     def step_one_frame(self, dt_ms: float) -> None:
         self._handle_events()
+        keys = pygame.key.get_pressed()
+        self.player.handle_input(keys)
+        self.player.update(dt_ms, self.world_panel.scene)
         if not self.hud.paused and not self.sim.extinct:
             interval_ms = 1000.0 / self.hud.gens_per_second
             self._gen_timer_ms += dt_ms
@@ -67,7 +76,7 @@ class App:
 
     def _render(self) -> None:
         self.screen.fill((10, 10, 15))
-        self.world_panel.draw(self.screen)
+        self.world_panel.draw(self.screen, player=self.player)
         self.chart_panel.draw(self.screen)
         self.hud.draw(self.screen, self.font)
         pygame.display.flip()
