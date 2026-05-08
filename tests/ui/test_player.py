@@ -57,6 +57,38 @@ def test_player_draw_does_not_raise(pygame_surface):
     p.draw(pygame_surface, origin=(0, 0))
 
 
+def test_player_facing_updates_with_velocity(pygame_surface):
+    p = Player(pos=(100.0, 100.0))
+    keys = {pygame.K_RIGHT: True, pygame.K_d: False, pygame.K_LEFT: False, pygame.K_a: False,
+            pygame.K_UP: False, pygame.K_w: False, pygame.K_DOWN: False, pygame.K_s: False}
+    p.handle_input(keys)
+    assert p._facing == "right"
+    keys[pygame.K_RIGHT] = False
+    keys[pygame.K_DOWN] = True
+    p.handle_input(keys)
+    assert p._facing == "down"
+
+
+def test_player_frame_advances_while_moving(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    p = Player(pos=(200.0, 200.0))
+    p.velocity = (Player.SPEED, 0.0)
+    scene = build_forest_scene()
+    prior = p._frame_index
+    p.update(dt_ms=300.0, scene=scene)
+    assert p._frame_index > prior
+
+
+def test_player_frame_resets_when_stopped(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    p = Player(pos=(200.0, 200.0))
+    scene = build_forest_scene()
+    p._frame_index = 1.5
+    p.velocity = (0.0, 0.0)
+    p.update(dt_ms=100.0, scene=scene)
+    assert p._frame_index == 0.0
+
+
 def test_player_cannot_walk_into_pond(pygame_surface):
     from evogame.ui.tilemap import build_forest_scene, TILE_PIXELS
     scene = build_forest_scene()

@@ -3,8 +3,11 @@ from typing import Mapping
 
 import pygame
 
-from evogame.ui.assets import load_tileset
+from evogame.ui.assets import load_player_walk_frames
 from evogame.ui.tilemap import Scene, TILE_PIXELS
+
+
+_FRAME_ADVANCE_MS = 150.0  # ms per walk frame
 
 
 def _is_walkable_at(scene: Scene, x: float, y: float) -> bool:
@@ -19,18 +22,20 @@ class Player:
     def __init__(self, pos: tuple[float, float]):
         self.pos = pos
         self.velocity: tuple[float, float] = (0.0, 0.0)
-        self._sprite: pygame.Surface | None = None
         self.size = (TILE_PIXELS, TILE_PIXELS)
+        self._facing: str = "down"
+        self._frame_index: float = 0.0
+        self._frames: dict[str, list[pygame.Surface]] | None = None
 
-    def _ensure_sprite(self) -> pygame.Surface:
-        if self._sprite is None:
-            tiles = load_tileset()
-            self._sprite = pygame.transform.scale(tiles["char_down"], self.size)
-        return self._sprite
-
-    def draw(self, surface: pygame.Surface, origin: tuple[int, int]) -> None:
-        sprite = self._ensure_sprite()
-        surface.blit(sprite, (int(origin[0] + self.pos[0]), int(origin[1] + self.pos[1])))
+    def _ensure_frames(self) -> dict[str, list[pygame.Surface]]:
+        if self._frames is None:
+            raw = load_player_walk_frames()
+            # Scale 28x28 source to TILE_PIXELS x TILE_PIXELS for consistent world feel.
+            self._frames = {
+                d: [pygame.transform.scale(f, self.size) for f in frames]
+                for d, frames in raw.items()
+            }
+        return self._frames
 
     def handle_input(self, keys: Mapping[int, bool]) -> None:
         dx = (1 if keys[pygame.K_RIGHT] or keys[pygame.K_d] else 0) \
@@ -42,6 +47,12 @@ class Player:
             return
         mag = math.hypot(dx, dy)
         self.velocity = (dx / mag * self.SPEED, dy / mag * self.SPEED)
+        vx, vy = self.velocity
+        if vx != 0 or vy != 0:
+            if abs(vx) > abs(vy):
+                self._facing = "right" if vx > 0 else "left"
+            else:
+                self._facing = "down" if vy > 0 else "up"
 
     def update(self, dt_ms: float, scene: Scene) -> None:
         vx, vy = self.velocity
@@ -65,3 +76,15 @@ class Player:
         else:
             y = max(0.0, min(scene.tilemap.pixel_height - self.size[1], self.pos[1]))
         self.pos = (x, y)
+        # Advance walk-cycle frame index when moving; idle holds first frame.
+        moving = self.velocity != (0.0, 0.0)
+        if moving:
+            self._frame_index += dt_ms / _FRAME_ADVANCE_MS
+        else:
+            self._frame_index = 0.0
+
+    def draw(self, surface: pygame.Surface, origin: tuple[int, int]) -> None:
+        frames = self._ensure_frames()
+        dir_frames = frames.get(self._facing) or frames["down"]
+        frame = dir_frames[int(self._frame_index) % len(dir_frames)]
+        surface.blit(frame, (int(origin[0] + self.pos[0]), int(origin[1] + self.pos[1])))
