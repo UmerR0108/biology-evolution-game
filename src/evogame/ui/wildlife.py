@@ -24,32 +24,6 @@ class Bunny:
         self._target: tuple[float, float] | None = None
         self._direction: str = "down"
         self._frame_index: float = 0.0
-        # If the spawn position is on a non-walkable tile (e.g. inside the
-        # pond), snap to the nearest walkable tile center so subsequent
-        # walkability checks behave sensibly.
-        col = int(self.pos[0] // TILE_PIXELS)
-        row = int(self.pos[1] // TILE_PIXELS)
-        if not self.scene.tilemap.is_walkable(col, row):
-            snapped = self._nearest_walkable(col, row)
-            if snapped is not None:
-                sc, sr = snapped
-                self.pos = (
-                    sc * TILE_PIXELS + TILE_PIXELS / 2,
-                    sr * TILE_PIXELS + TILE_PIXELS / 2,
-                )
-
-    def _nearest_walkable(self, col: int, row: int) -> tuple[int, int] | None:
-        tm = self.scene.tilemap
-        max_radius = max(tm.cols, tm.rows)
-        for radius in range(1, max_radius + 1):
-            for dr in range(-radius, radius + 1):
-                for dc in range(-radius, radius + 1):
-                    if max(abs(dr), abs(dc)) != radius:
-                        continue
-                    nc, nr = col + dc, row + dr
-                    if tm.is_walkable(nc, nr):
-                        return (nc, nr)
-        return None
 
     def _pick_target(self) -> tuple[float, float] | None:
         for _ in range(8):

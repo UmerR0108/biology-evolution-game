@@ -21,18 +21,24 @@ def test_bunny_idle_then_walk(pygame_surface):
 
 
 def test_bunny_does_not_enter_water(pygame_surface):
+    """A bunny that wanders the forest never ends up on a water tile."""
     from evogame.ui.tilemap import build_forest_scene
     scene = build_forest_scene()
     bounds = scene.pond_pixel_bounds()
     rng = random.Random(0)
-    b = Bunny(pos=(bounds.centerx, bounds.centery), scene=scene, rng=rng)
-    # Even if started inside the pond bbox, after one update it should not be marked walking into water.
-    for _ in range(20):
+    # Spawn just outside the pond on grass.
+    start_x = bounds.right + 16.0
+    start_y = bounds.centery
+    b = Bunny(pos=(start_x, start_y), scene=scene, rng=rng)
+    # Run for ~20 seconds — well beyond the 1.5-3.0s idle window — so the bunny
+    # has many chances to pick a target and walk.
+    for _ in range(200):
         b.update(dt_ms=100.0)
-    # Final pos should be on a walkable tile.
-    col = int(b.pos[0] // 32)
-    row = int(b.pos[1] // 32)
-    assert scene.tilemap.is_walkable(col, row)
+        # After every step, position must be on a walkable tile.
+        col = int(b.pos[0] // 32)
+        row = int(b.pos[1] // 32)
+        assert scene.tilemap.is_walkable(col, row), \
+            f"bunny entered non-walkable tile ({col},{row}) at pos={b.pos}"
 
 
 def test_bunny_draw(pygame_surface):
