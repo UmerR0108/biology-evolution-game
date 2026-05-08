@@ -58,3 +58,14 @@ def test_world_panel_draws_pond_view(pygame_surface):
     pop = [Creature.random(GUPPY_SCHEMA, rng) for _ in range(10)]
     panel.pond_view.refresh(pop)
     panel.draw(pygame_surface)
+
+
+def test_world_panel_spawns_three_bunnies(pygame_surface):
+    from evogame.ui.world_panel import WorldPanel
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    # Up to 3 bunnies, all on walkable tiles.
+    assert 1 <= len(panel.wildlife) <= 3
+    for bunny in panel.wildlife:
+        col = int(bunny.pos[0] // 32)
+        row = int(bunny.pos[1] // 32)
+        assert panel.scene.tilemap.is_walkable(col, row)

@@ -90,6 +90,7 @@ class App:
                     break
         # Drift fish every frame (even when paused or journal open).
         self.world_panel.pond_view.update(dt_ms)
+        self.world_panel.update_wildlife(dt_ms)
         self._render()
 
     def _render(self) -> None:

@@ -6,6 +6,7 @@ import pygame
 from evogame.ui.assets import load_tileset
 from evogame.ui.pond import PondView
 from evogame.ui.tilemap import TILE_PIXELS, build_forest_scene
+from evogame.ui.wildlife import Bunny
 
 if TYPE_CHECKING:
     from evogame.ui.player import Player
@@ -14,7 +15,9 @@ if TYPE_CHECKING:
 class WorldPanel:
     COTTAGE_INTERACT_RADIUS = 64
 
-    def __init__(self, rect: pygame.Rect, pond_rng: _rand_module.Random | None = None):
+    def __init__(self, rect: pygame.Rect,
+                 pond_rng: _rand_module.Random | None = None,
+                 wildlife_rng: _rand_module.Random | None = None):
         self.rect = rect
         self.scene = build_forest_scene()
         self._object_surfs: dict[str, pygame.Surface] | None = None
@@ -24,9 +27,25 @@ class WorldPanel:
             rng=pond_rng or _rand_module.Random(0),
         )
 
+        wlrng = wildlife_rng or _rand_module.Random(7)
+        self.wildlife: list[Bunny] = []
+        for _ in range(3):
+            for _attempt in range(20):
+                x = wlrng.uniform(0, self.scene.tilemap.pixel_width)
+                y = wlrng.uniform(0, self.scene.tilemap.pixel_height)
+                col = int(x // TILE_PIXELS)
+                row = int(y // TILE_PIXELS)
+                if self.scene.tilemap.is_walkable(col, row):
+                    self.wildlife.append(Bunny(pos=(x, y), scene=self.scene, rng=wlrng))
+                    break
+
     def _pond_bounds_in_panel(self) -> pygame.Rect:
         b = self.scene.pond_pixel_bounds()
         return pygame.Rect(self.rect.left + b.left, self.rect.top + b.top, b.width, b.height)
+
+    def update_wildlife(self, dt_ms: float) -> None:
+        for b in self.wildlife:
+            b.update(dt_ms)
 
     def _ensure_objects(self) -> dict[str, pygame.Surface]:
         if self._object_surfs is None:
@@ -57,6 +76,9 @@ class WorldPanel:
             x = self.rect.left + obj.col * TILE_PIXELS
             y = self.rect.top + obj.row * TILE_PIXELS
             surface.blit(sprite, (x, y))
+        # Bunnies drawn after objects, before pond fish (so a bunny near a tree appears in front of the tree).
+        for b in self.wildlife:
+            b.draw(surface, origin=(self.rect.left, self.rect.top))
         # Pond fish (after objects, before player so fish go behind player).
         self.pond_view.draw(surface, origin=(0, 0))
         if player is not None:
