@@ -32,3 +32,30 @@ def test_tilemap_draw_paints_grass_pixels(pygame_surface):
     # Grass tile is not pure black; somewhere in the painted region pixel != black.
     pixel = pygame_surface.get_at((TILE_PIXELS // 2, TILE_PIXELS // 2))
     assert pixel != (0, 0, 0, 255)
+
+
+def test_forest_scene_has_pond_and_dimensions():
+    from evogame.ui.tilemap import build_forest_scene, TILE_PIXELS
+    scene = build_forest_scene()
+    # scene must fit inside 1000x596 (window height minus 24px status strip)
+    assert scene.tilemap.pixel_width <= 1000
+    assert scene.tilemap.pixel_height <= 596
+    assert scene.tilemap.pixel_width >= 32 * TILE_PIXELS or scene.tilemap.cols >= 28
+    # has at least one pond tile and at least one tree object
+    pond_tiles = [
+        (c, r) for r in range(scene.tilemap.rows) for c in range(scene.tilemap.cols)
+        if scene.tilemap.grid[r][c].startswith("water_")
+    ]
+    assert len(pond_tiles) >= 4, "scene must include a 2x2-or-larger pond"
+    assert any(o.kind == "tree" for o in scene.objects)
+    assert any(o.kind == "cottage" for o in scene.objects)
+
+
+def test_forest_scene_pond_bounds_are_inside_grid():
+    from evogame.ui.tilemap import build_forest_scene
+    scene = build_forest_scene()
+    bounds = scene.pond_pixel_bounds()
+    assert bounds.width > 0 and bounds.height > 0
+    assert bounds.left >= 0 and bounds.top >= 0
+    assert bounds.right <= scene.tilemap.pixel_width
+    assert bounds.bottom <= scene.tilemap.pixel_height
