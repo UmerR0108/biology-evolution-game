@@ -4,7 +4,13 @@ from typing import Mapping
 import pygame
 
 from evogame.ui.assets import load_tileset
-from evogame.ui.tilemap import TILE_PIXELS
+from evogame.ui.tilemap import Scene, TILE_PIXELS
+
+
+def _is_walkable_at(scene: Scene, x: float, y: float) -> bool:
+    col = int(x // TILE_PIXELS)
+    row = int(y // TILE_PIXELS)
+    return scene.tilemap.is_walkable(col, row)
 
 
 class Player:
@@ -32,3 +38,26 @@ class Player:
             return
         mag = math.hypot(dx, dy)
         self.velocity = (dx / mag * self.SPEED, dy / mag * self.SPEED)
+
+    def update(self, dt_ms: float, scene: Scene) -> None:
+        vx, vy = self.velocity
+        dt = dt_ms / 1000.0
+        # X axis
+        new_x = self.pos[0] + vx * dt
+        feet_y = self.pos[1] + self.size[1] - 2
+        feet_x_test = new_x + self.size[0] / 2
+        if 0 <= new_x <= scene.tilemap.pixel_width - self.size[0] \
+           and _is_walkable_at(scene, feet_x_test, feet_y):
+            x = new_x
+        else:
+            x = max(0.0, min(scene.tilemap.pixel_width - self.size[0], self.pos[0]))
+        # Y axis
+        new_y = self.pos[1] + vy * dt
+        feet_x_keep = x + self.size[0] / 2
+        feet_y_test = new_y + self.size[1] - 2
+        if 0 <= new_y <= scene.tilemap.pixel_height - self.size[1] \
+           and _is_walkable_at(scene, feet_x_keep, feet_y_test):
+            y = new_y
+        else:
+            y = max(0.0, min(scene.tilemap.pixel_height - self.size[1], self.pos[1]))
+        self.pos = (x, y)

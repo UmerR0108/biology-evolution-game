@@ -31,3 +31,37 @@ def test_player_handle_input_diagonal_normalizes(pygame_surface):
     speed_sq = vx * vx + vy * vy
     # Magnitude should be ~Player.SPEED, not sqrt(2)*SPEED
     assert abs(speed_sq ** 0.5 - Player.SPEED) < 1.0
+
+
+def test_player_update_advances_position(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    p = Player(pos=(200.0, 200.0))
+    p.velocity = (Player.SPEED, 0.0)
+    scene = build_forest_scene()
+    p.update(dt_ms=1000.0, scene=scene)
+    assert p.pos[0] == 200.0 + Player.SPEED
+    assert p.pos[1] == 200.0
+
+
+def test_player_update_clamps_to_scene(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    p = Player(pos=(0.0, 0.0))
+    p.velocity = (-Player.SPEED, 0.0)
+    scene = build_forest_scene()
+    p.update(dt_ms=1000.0, scene=scene)
+    assert p.pos[0] == 0.0  # clamped
+
+
+def test_player_cannot_walk_into_pond(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene, TILE_PIXELS
+    scene = build_forest_scene()
+    bounds = scene.pond_pixel_bounds()
+    # Place player just left of pond, moving right.
+    p = Player(pos=(bounds.left - 4.0, bounds.top + bounds.height / 2))
+    p.velocity = (Player.SPEED, 0.0)
+    p.update(dt_ms=1000.0, scene=scene)
+    # Player feet should not be inside the pond rect.
+    feet_x = p.pos[0] + p.size[0] / 2
+    feet_y = p.pos[1] + p.size[1] - 2
+    assert not bounds.collidepoint(feet_x, feet_y), \
+        f"player walked into pond: feet=({feet_x},{feet_y}) bounds={bounds}"
