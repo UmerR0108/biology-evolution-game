@@ -1,0 +1,12 @@
+"""Run the evogame frontend MVP — guppy + predator pressure."""
+
+from evogame.ui.app import App
+
+
+def main() -> None:
+    app = App()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
