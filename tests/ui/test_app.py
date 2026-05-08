@@ -21,7 +21,7 @@ def test_app_advances_generation_after_enough_time():
 
 def test_app_does_not_advance_when_paused():
     app = App(seed=0)
-    app.hud.paused = True
+    app.journal.paused = True
     app.step_one_frame(2000)
     assert app.sim.generation == 0
     app.shutdown()
