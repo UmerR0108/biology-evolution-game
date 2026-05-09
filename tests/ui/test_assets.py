@@ -54,3 +54,29 @@ def test_load_bunny_frames_returns_independent_surfaces(pygame_surface):
     frames["down"][0].fill(sentinel)
     assert frames["up"][0].get_at((0, 0)) == before_up, \
         "mutating bunny frames['down'] must not affect frames['up']"
+
+
+def test_load_tree_sprite_returns_surface(pygame_surface):
+    from evogame.ui.assets import load_tree_sprite
+    surf = load_tree_sprite("6", "green")
+    assert isinstance(surf, pygame.Surface)
+    w, h = surf.get_size()
+    assert w > 0 and h > 0
+    # Tree 6 is a tall tree — height should exceed width.
+    assert h > w
+
+
+def test_load_tree_sprite_supports_color_variants(pygame_surface):
+    from evogame.ui.assets import load_tree_sprite
+    a = load_tree_sprite("6", "green")
+    b = load_tree_sprite("6", "teal")
+    # Different colors → different surfaces (after independent loads).
+    assert a is not b
+
+
+def test_load_pond_composite_returns_surface(pygame_surface):
+    from evogame.ui.assets import load_pond_composite
+    surf = load_pond_composite()
+    assert isinstance(surf, pygame.Surface)
+    w, h = surf.get_size()
+    assert w >= 32 and h >= 32  # nontrivial size

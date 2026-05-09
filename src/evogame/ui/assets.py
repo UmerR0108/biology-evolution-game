@@ -50,6 +50,8 @@ _LABLADY_PATH = os.path.join(
 _WATER_PATH = os.path.join(
     _ASSETS_ROOT, "tilesets", "water_plus", "Water+.png",
 )
+_TREE_PACK_ROOT = os.path.join(_ASSETS_ROOT, "trees", "tree_pack")
+_POND_COMPOSITE_PATH = os.path.join(_ASSETS_ROOT, "water", "wateranimate2.png")
 
 _TILE = 16
 
@@ -107,6 +109,28 @@ _LABLADY_CHAR_DOWN_RECT: tuple[int, int, int, int] = (
     _LABLADY_SPRITE,
 )
 
+# wateranimate2.png is 576x386. The right portion holds composite tiles;
+# the rect below carves out the grass-bordered pond — a single 96x96 tile
+# we can scale to fit the pond's bounding box and blit over the grass
+# tilemap. Verified by visual inspection plus pixel sampling at the four
+# edges: bottom row at y=187..191 is solid grass color (47, 129, 54),
+# confirming no neighboring-tile bleed.
+_POND_COMPOSITE_RECT: tuple[int, int, int, int] = (384, 96, 96, 96)
+
+# Tree Pack color suffixes as they appear in the source filenames.
+# The pack uses ALL CAPS suffixes with spaces (e.g. "TREE 6_YELLOWISH GREEN.png").
+_TREE_COLOR_SUFFIXES: dict[str, str] = {
+    "green": "GREEN",
+    "teal": "TEAL",
+    "yellowish_green": "YELLOWISH GREEN",
+    "sandy_green": "SANDY GREEN",
+    "red": "RED",
+    "orange": "ORANGE",
+    "yellow": "YELLOW",
+    "rose": "ROSE",
+    "purple": "PURPLE",
+}
+
 _BUNNY_TILE = 16
 # MiniBunny.png is a single-direction sheet. We pick three clean frames
 # from the top row of bunny sprites (y=16, x=0/16/32). Each direction
@@ -154,6 +178,41 @@ def _load_lablady_image() -> pygame.Surface:
 @lru_cache(maxsize=1)
 def _load_water_image() -> pygame.Surface:
     return _maybe_convert_alpha(pygame.image.load(_WATER_PATH))
+
+
+@lru_cache(maxsize=1)
+def _load_pond_composite_image() -> pygame.Surface:
+    return _maybe_convert_alpha(pygame.image.load(_POND_COMPOSITE_PATH))
+
+
+@lru_cache(maxsize=32)
+def _load_tree_image(tree_id: str, color: str) -> pygame.Surface:
+    """Load and cache a tree sprite by id and color name.
+
+    Tree 9's PNGs are misnamed ``TREE 8_*.png`` in the source pack
+    (only ``TREE 9_ROSE.png`` follows the expected naming). We try
+    the canonical filename first and fall back to the typo'd one.
+    """
+    suffix = _TREE_COLOR_SUFFIXES.get(color)
+    if suffix is None:
+        raise ValueError(
+            f"Unknown tree color {color!r}; expected one of "
+            f"{sorted(_TREE_COLOR_SUFFIXES)}"
+        )
+    folder = os.path.join(_TREE_PACK_ROOT, f"Tree {tree_id}")
+    candidates = [f"TREE {tree_id}_{suffix}.png"]
+    if tree_id == "9":
+        # Tree 9 folder ships TREE 8_*.png for most colors due to a
+        # typo in the source pack.
+        candidates.append(f"TREE 8_{suffix}.png")
+    for name in candidates:
+        path = os.path.join(folder, name)
+        if os.path.exists(path):
+            return _maybe_convert_alpha(pygame.image.load(path))
+    raise FileNotFoundError(
+        f"No tree sprite found for tree_id={tree_id!r}, color={color!r}; "
+        f"tried {candidates} in {folder}"
+    )
 
 
 def _lablady_walk_rect(direction: str, frame_index: int) -> pygame.Rect:
@@ -211,6 +270,29 @@ def load_bunny_frames() -> dict[str, list[pygame.Surface]]:
         ]
         for direction in _BUNNY_DIRECTIONS
     }
+
+
+def load_tree_sprite(tree_id: str, color: str = "green") -> pygame.Surface:
+    """Return a single tree sprite from the Pixel Art Tree Pack.
+
+    ``tree_id`` is the tree number ("1".."15"). ``color`` is one of
+    the keys of ``_TREE_COLOR_SUFFIXES``. Each call returns a fresh
+    ``Surface`` copy so callers may tint or mutate freely without
+    affecting the cached source image.
+    """
+    sheet = _load_tree_image(tree_id, color)
+    return sheet.copy()
+
+
+def load_pond_composite() -> pygame.Surface:
+    """Return the grass-bordered pond composite tile.
+
+    Sliced from ``wateranimate2.png`` at ``_POND_COMPOSITE_RECT``.
+    Callers typically scale this to the pond's bounding box and blit
+    it over the underlying grass tilemap.
+    """
+    sheet = _load_pond_composite_image()
+    return sheet.subsurface(pygame.Rect(*_POND_COMPOSITE_RECT)).copy()
 
 
 def load_player_walk_frames() -> dict[str, list[pygame.Surface]]:
