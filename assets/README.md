@@ -29,5 +29,21 @@ Source: Water+ tileset. Animated water frames, shoreline edges, and water
 decorations.
 Used for: pond water tiles.
 
+## trees/tree_pack/
+
+Source: 15-tree pixel-art pack with multiple color variants per tree.
+Used for: forest tree objects (Tree 6 = tall classic, Tree 9 = large round, Tree 11 = small pine).
+
+## nature/
+
+Source: NatureTiles composite tilesheet — vines, mushrooms, flowers, bushes,
+small grass tufts. Used for: ambient forest decoration objects.
+
+## water/
+
+Source: wateranimate2.png — animated waterfall frames (currently unused) and
+composite pond-with-grass-border tile used to render the pond as a single
+sprite over the grass tilemap.
+
 If you replace this folder with a different forest tileset, update the slice
 rectangles in `src/evogame/ui/assets.py`.
