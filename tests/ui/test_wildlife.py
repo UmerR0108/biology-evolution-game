@@ -41,6 +41,37 @@ def test_bunny_does_not_enter_water(pygame_surface):
             f"bunny entered non-walkable tile ({col},{row}) at pos={b.pos}"
 
 
+def test_bunny_frame_resets_on_idle_transition(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    scene = build_forest_scene()
+    rng = random.Random(0)
+    b = Bunny(pos=(100.0, 100.0), scene=scene, rng=rng)
+    b.state = "walk"
+    b._target = (124.0, 100.0)
+
+    b.update(dt_ms=350.0)
+    assert b.state == "walk"
+    assert b._frame_index > 0.0
+
+    b._target = (b.pos[0] + 1.0, b.pos[1])
+    b.update(dt_ms=16.0)
+    assert b.state == "idle"
+    assert b._frame_index == 0.0
+
+
+def test_bunny_frame_advances_every_350ms(pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    scene = build_forest_scene()
+    rng = random.Random(0)
+    b = Bunny(pos=(100.0, 100.0), scene=scene, rng=rng)
+    b.state = "walk"
+    b._target = (200.0, 100.0)
+
+    b.update(dt_ms=350.0)
+
+    assert b._frame_index == 1.0
+
+
 def test_bunny_draw(pygame_surface):
     from evogame.ui.tilemap import build_forest_scene
     scene = build_forest_scene()

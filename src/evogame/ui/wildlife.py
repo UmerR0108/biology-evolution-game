@@ -10,6 +10,7 @@ from evogame.ui.tilemap import Scene, TILE_PIXELS
 _IDLE_MIN_MS = 1500.0
 _IDLE_MAX_MS = 3000.0
 _BUNNY_SPEED = 24.0  # px/sec
+_FRAME_ADVANCE_MS = 350.0
 
 
 @dataclass
@@ -41,6 +42,12 @@ class Bunny:
         else:
             self._direction = "down" if dy > 0 else "up"
 
+    def _enter_idle(self) -> None:
+        self.state = "idle"
+        self._target = None
+        self._frame_index = 0.0
+        self._timer_ms = self.rng.uniform(_IDLE_MIN_MS, _IDLE_MAX_MS)
+
     def update(self, dt_ms: float) -> None:
         if self.state == "idle":
             self._timer_ms -= dt_ms
@@ -50,20 +57,17 @@ class Bunny:
                     self._target = target
                     self.state = "walk"
                 else:
-                    self._timer_ms = self.rng.uniform(_IDLE_MIN_MS, _IDLE_MAX_MS)
+                    self._enter_idle()
             return
         # walking
         if self._target is None:
-            self.state = "idle"
-            self._timer_ms = self.rng.uniform(_IDLE_MIN_MS, _IDLE_MAX_MS)
+            self._enter_idle()
             return
         tx, ty = self._target
         dx, dy = tx - self.pos[0], ty - self.pos[1]
         dist = math.hypot(dx, dy)
         if dist < 2.0:
-            self.state = "idle"
-            self._target = None
-            self._timer_ms = self.rng.uniform(_IDLE_MIN_MS, _IDLE_MAX_MS)
+            self._enter_idle()
             return
         self._update_direction(dx, dy)
         step = _BUNNY_SPEED * dt_ms / 1000.0
@@ -75,8 +79,9 @@ class Bunny:
             self.pos = (nx, ny)
         else:
             # Abandon target if blocked.
-            self._target = None
-        self._frame_index = (self._frame_index + dt_ms / 200.0) % 3.0
+            self._enter_idle()
+            return
+        self._frame_index = (self._frame_index + dt_ms / _FRAME_ADVANCE_MS) % 3.0
 
     def draw(self, surface: pygame.Surface, origin: tuple[int, int]) -> None:
         frames = load_bunny_frames()
