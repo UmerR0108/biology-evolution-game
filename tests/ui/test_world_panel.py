@@ -69,3 +69,19 @@ def test_world_panel_spawns_three_bunnies(pygame_surface):
         col = int(bunny.pos[0] // 32)
         row = int(bunny.pos[1] // 32)
         assert panel.scene.tilemap.is_walkable(col, row)
+
+
+def test_world_panel_renders_pond_composite_without_error():
+    from evogame.ui.world_panel import WorldPanel
+    big_surface = pygame.Surface((1000, 596))
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    panel.draw(big_surface)
+    # Pixel inside the pond region should not be all-grass.
+    bounds = panel.scene.pond_pixel_bounds()
+    panel_rect = panel.rect
+    pond_center_x = panel_rect.left + bounds.left + bounds.width // 2
+    pond_center_y = panel_rect.top + bounds.top + bounds.height // 2
+    pixel = big_surface.get_at((pond_center_x, pond_center_y))
+    # Pond should be bluish — green channel less than blue channel.
+    assert pixel[2] > pixel[1] - 30 or pixel[2] > 100, \
+        f"pond center should be bluish, got {pixel}"

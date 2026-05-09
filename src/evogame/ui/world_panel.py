@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-from evogame.ui.assets import load_tileset
+from evogame.ui.assets import load_pond_composite, load_tileset, load_tree_sprite
 from evogame.ui.pond import PondView
 from evogame.ui.tilemap import TILE_PIXELS, build_forest_scene
 from evogame.ui.wildlife import Bunny
@@ -21,6 +21,7 @@ class WorldPanel:
         self.rect = rect
         self.scene = build_forest_scene()
         self._object_surfs: dict[str, pygame.Surface] | None = None
+        self._pond_composite: pygame.Surface | None = None
         self.pond_view = PondView(
             bounds=self._pond_bounds_in_panel(),
             max_visible=10,
@@ -50,11 +51,24 @@ class WorldPanel:
     def _ensure_objects(self) -> dict[str, pygame.Surface]:
         if self._object_surfs is None:
             raw = load_tileset()
+            # Tree 6 (70x98 native) is taller-than-wide and reads as a
+            # proper 3D-feeling tree. We blit it at native size and
+            # anchor it at the cell's bottom edge in ``draw`` so the
+            # canopy rises above the grid cell.
             self._object_surfs = {
-                "tree": pygame.transform.scale(raw["tree"], (TILE_PIXELS * 2, TILE_PIXELS * 2)),
+                "tree": load_tree_sprite("6", "green"),
                 "cottage": pygame.transform.scale(raw["cottage"], (TILE_PIXELS * 4, TILE_PIXELS * 3)),
             }
         return self._object_surfs
+
+    def _ensure_pond_composite(self) -> pygame.Surface:
+        if self._pond_composite is None:
+            composite = load_pond_composite()
+            bounds = self.scene.pond_pixel_bounds()
+            self._pond_composite = pygame.transform.scale(
+                composite, (bounds.width, bounds.height)
+            )
+        return self._pond_composite
 
     def cottage_in_range(self, player: "Player") -> bool:
         cottage = next((o for o in self.scene.objects if o.kind == "cottage"), None)
@@ -68,13 +82,30 @@ class WorldPanel:
 
     def draw(self, surface: pygame.Surface, player: "Player | None" = None, font: pygame.font.Font | None = None) -> None:
         self.scene.tilemap.draw(surface, origin=(self.rect.left, self.rect.top))
+        # Pond composite overlays the synthesized water tiles, providing
+        # a single grass-bordered sprite that visually merges with the
+        # surrounding grass. The water_* tiles in the grid still drive
+        # is_walkable / collision — only visuals change here.
+        bounds = self.scene.pond_pixel_bounds()
+        if bounds.width > 0 and bounds.height > 0:
+            pond_composite = self._ensure_pond_composite()
+            surface.blit(
+                pond_composite,
+                (self.rect.left + bounds.left, self.rect.top + bounds.top),
+            )
         objs = self._ensure_objects()
         for obj in self.scene.objects:
             sprite = objs.get(obj.kind)
             if sprite is None:
                 continue
             x = self.rect.left + obj.col * TILE_PIXELS
-            y = self.rect.top + obj.row * TILE_PIXELS
+            if obj.kind == "tree":
+                # Anchor tree at cell's bottom edge so the canopy rises
+                # above the cell. (sprite.height - TILE_PIXELS) lifts the
+                # blit origin upward by the canopy overhang.
+                y = self.rect.top + obj.row * TILE_PIXELS - (sprite.get_height() - TILE_PIXELS)
+            else:
+                y = self.rect.top + obj.row * TILE_PIXELS
             surface.blit(sprite, (x, y))
         # Bunnies drawn after objects, before pond fish (so a bunny near a tree appears in front of the tree).
         for b in self.wildlife:
