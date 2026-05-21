@@ -1,0 +1,48 @@
+# Where I left off — 2026-05-21
+
+## Status
+
+Field-researcher exploration UI is merged into `main`. The repo is ready for GitHub push once a remote is configured.
+
+Verification:
+
+```powershell
+uv run --extra dev pytest -q
+```
+
+Current result: **150 passed**.
+
+## What landed
+
+- Explorable top-down field sites: Home, Pond, and Forest.
+- Player movement with WASD/arrows, sprint, collision, and animated lab-lady sprite.
+- Field Journal overlay with live allele-frequency chart, predator toggle, speed/pause controls, gene tabs, and observation notes.
+- Pond view with drifting phenotype-tinted guppies sampled from the simulation.
+- Forest wildlife with ambient bunnies and observation affordances.
+- Tilemap/scene system plus vendored free art assets for terrain, fish, wildlife, trees, water, cottage, and player.
+- README controls updated for the field-researcher loop.
+- `PROJECT_SPEC.md` captures the AP Biology project target and future feature direction.
+
+## Known good commands
+
+```powershell
+uv run --extra dev pytest -q
+uv run python scripts/run_game.py
+```
+
+## Manual verification still useful
+
+Run the game with a graphical session and check:
+
+1. Window opens and the player can move between Home, Pond, and Forest.
+2. Journal opens with J or interaction prompts.
+3. Predator toggle / speed / pause controls respond.
+4. Allele chart updates as generations advance.
+5. Close/ESC exits cleanly.
+
+## Sensible next directions
+
+1. Add a beetle/land-habitat species to better hit the AP Bio rubric.
+2. Expand the Field Journal auto-logging: mutation observed, fixation, population crash, speciation.
+3. Add speciation tracking across isolated populations.
+4. Add a seed/replay flag for reproducible class demos.
