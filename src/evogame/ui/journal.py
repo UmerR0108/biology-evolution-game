@@ -12,6 +12,26 @@ _GENE_BUTTON_ACTIVE = (255, 222, 89)
 _GENE_BUTTON_BORDER = (185, 205, 190)
 
 
+def _wrap_text_to_width(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
+    """Wrap text into lines that fit within ``max_width`` pixels."""
+    if font.render(text, True, _FG).get_width() <= max_width:
+        return [text]
+    words = text.split()
+    if not words:
+        return [text]
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if font.render(candidate, True, _FG).get_width() <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
 class Journal:
     def __init__(self, screen_rect: pygame.Rect, sim: SimController):
         self.screen_rect = screen_rect
@@ -406,6 +426,18 @@ class Journal:
             window[-1] = f"↓ {remaining} more journal lines"
         return window
 
+    def observation_text_max_width(self) -> int:
+        """Return the right-column text width so notes do not spill into the chart/fish area."""
+        return max(40, self.panel_rect.right - 18 - self.pause_button.rect.left)
+
+    def visible_observation_lines_for_width(self, font: pygame.font.Font) -> list[str]:
+        """Return visible notes wrapped to the right control column's pixel width."""
+        wrapped: list[str] = []
+        max_width = self.observation_text_max_width()
+        for line in self.visible_observation_lines():
+            wrapped.extend(_wrap_text_to_width(line, font, max_width))
+        return wrapped[:self._max_visible_observation_lines()]
+
     def draw(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
         if not self.open:
             return
@@ -434,7 +466,7 @@ class Journal:
         surface.blit(speed_label, (self.speed_slider.rect.left, self.speed_slider.rect.top - 20))
         self.speed_slider.draw(surface, font)
         notes_y = self.pause_button.rect.bottom + 28
-        for index, line in enumerate(self.visible_observation_lines()):
+        for index, line in enumerate(self.visible_observation_lines_for_width(font)):
             color = (245, 232, 180) if index == 0 else _FG
             surface.blit(font.render(line, True, color), (self.pause_button.rect.left, notes_y + index * 20))
         self._sync_pause_button_label()

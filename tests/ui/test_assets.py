@@ -72,6 +72,19 @@ def test_load_bunny_frames_returns_independent_surfaces(pygame_surface):
         "mutating bunny frames['down'] must not affect frames['up']"
 
 
+def test_load_bunny_frames_use_complete_paired_sprites(pygame_surface):
+    frames = load_bunny_frames()
+
+    for direction_frames in frames.values():
+        for frame in direction_frames:
+            # MiniBunny stores each visible bunny across a left/right 16px pair.
+            # A frame that is only one half has width 16 and alpha touching an edge.
+            assert frame.get_width() >= 32
+            bbox = frame.get_bounding_rect()
+            assert bbox.left > 0
+            assert bbox.right < frame.get_width()
+
+
 def test_load_tree_sprite_returns_surface(pygame_surface):
     from evogame.ui.assets import load_tree_sprite
     surf = load_tree_sprite("6", "green")

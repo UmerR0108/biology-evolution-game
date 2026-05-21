@@ -165,14 +165,14 @@ _TREE_COLOR_SUFFIXES: dict[str, str] = {
 }
 
 _BUNNY_TILE = 16
-# MiniBunny.png is a single-direction sheet. We pick three clean frames
-# from the top row of bunny sprites (y=16, x=0/16/32). Each direction
-# key gets independent Surface copies so callers can mutate freely.
+# MiniBunny.png stores each full bunny across a left/right 16px pair.
+# Slicing single 16x16 cells shows only half a bunny, so each animation
+# frame is a 32x16 paired sprite.
 _BUNNY_DIRECTIONS = ("down", "up", "left", "right")
 _BUNNY_FRAME_RECTS: tuple[tuple[int, int, int, int], ...] = (
-    (0,  16, _BUNNY_TILE, _BUNNY_TILE),
-    (16, 16, _BUNNY_TILE, _BUNNY_TILE),
-    (32, 16, _BUNNY_TILE, _BUNNY_TILE),
+    (0,  16, _BUNNY_TILE * 2, _BUNNY_TILE),
+    (32, 16, _BUNNY_TILE * 2, _BUNNY_TILE),
+    (64, 16, _BUNNY_TILE * 2, _BUNNY_TILE),
 )
 
 

@@ -254,6 +254,19 @@ class WorldPanel:
             )
         return None
 
+    def interaction_prompt_rect_for_player(
+        self,
+        player: "Player",
+        prompt: str | None,
+        font: pygame.font.Font,
+    ) -> pygame.Rect | None:
+        """Return the current prompt's clickable screen rect, if any."""
+        prompt_pos = self.interaction_prompt_anchor_for_player(player, prompt)
+        if prompt is None or prompt_pos is None:
+            return None
+        text = font.render(prompt, True, (255, 255, 255))
+        return pygame.Rect(prompt_pos[0], prompt_pos[1], text.get_width() + 6, text.get_height() + 4)
+
     def pond_at_screen_pos(self, pos: tuple[int, int]) -> bool:
         if self.area_id != "pond":
             return False

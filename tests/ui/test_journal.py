@@ -276,6 +276,19 @@ def test_journal_controls_hint_mentions_mouse_wheel_speed(pygame_surface):
     assert "wheel speed" in journal.controls_hint_text().lower()
 
 
+def test_journal_visible_observation_lines_fit_controls_column(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    journal.add_field_note(
+        "Pond Study Site: generation 123 guppy population sampled for allele frequencies "
+        "with a very long field note that used to render across the chart/fish area."
+    )
+    font = pygame.font.SysFont("arial", 14)
+
+    for line in journal.visible_observation_lines_for_width(font):
+        assert font.render(line, True, (255, 255, 255)).get_width() <= journal.observation_text_max_width()
+
+
 def test_journal_r_key_resets_research_run_when_open(pygame_surface):
     sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
     sim.set_predator(True)

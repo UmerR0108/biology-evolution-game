@@ -104,6 +104,14 @@ class App:
             duplicate="Pond sample already in field journal.",
         )
 
+    def _record_wildlife_observation(self, wildlife_note: str) -> None:
+        added = self.journal.add_field_note(wildlife_note)
+        self._set_note_status_message(
+            added=added,
+            saved="Observation saved to field journal.",
+            duplicate="Observation already in field journal.",
+        )
+
     def _record_home_base_note(self) -> None:
         added = self.journal.add_field_note(self._area_survey_note("home"))
         self._set_note_status_message(
@@ -169,12 +177,7 @@ class App:
                         continue
                     wildlife_note = self.world_panel.wildlife_field_note_for_player(self.player)
                     if wildlife_note is not None:
-                        added = self.journal.add_field_note(wildlife_note)
-                        self._set_note_status_message(
-                            added=added,
-                            saved="Observation saved to field journal.",
-                            duplicate="Observation already in field journal.",
-                        )
+                        self._record_wildlife_observation(wildlife_note)
                         continue
                     next_area = self.world_panel.area_exit_target_for_player(self.player)
                     if next_area is not None:
@@ -205,14 +208,25 @@ class App:
                 if clicked_area is not None:
                     self._switch_area_if_changed(clicked_area)
                     continue
+                prompt = self.world_panel.interaction_prompt_for_player(self.player)
+                prompt_rect = self.world_panel.interaction_prompt_rect_for_player(
+                    self.player,
+                    prompt,
+                    self.small_font,
+                )
+                if (
+                    prompt is not None
+                    and prompt.startswith("[E/Enter] Observe bunny")
+                    and prompt_rect is not None
+                    and prompt_rect.collidepoint(event.pos)
+                ):
+                    wildlife_note = self.world_panel.wildlife_field_note_for_player(self.player)
+                    if wildlife_note is not None:
+                        self._record_wildlife_observation(wildlife_note)
+                        continue
                 wildlife_note = self.world_panel.wildlife_field_note_at_screen_pos(event.pos)
                 if wildlife_note is not None:
-                    added = self.journal.add_field_note(wildlife_note)
-                    self._set_note_status_message(
-                        added=added,
-                        saved="Observation saved to field journal.",
-                        duplicate="Observation already in field journal.",
-                    )
+                    self._record_wildlife_observation(wildlife_note)
                     continue
                 clicked_pond = self.world_panel.pond_at_screen_pos(event.pos)
                 clicked_cottage = self.world_panel.cottage_at_screen_pos(event.pos)

@@ -588,6 +588,35 @@ def test_app_clicking_near_wildlife_records_field_note():
     app.shutdown()
 
 
+def test_app_clicking_bunny_prompt_records_field_note():
+    import random
+
+    from evogame.ui.wildlife import Bunny
+
+    app = App(seed=0)
+    app.player.pos = app.world_panel.switch_area("forest")
+    app.world_panel.wildlife = [Bunny(
+        pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
+        scene=app.world_panel.scene,
+        rng=random.Random(1),
+    )]
+    prompt = app.world_panel.interaction_prompt_for_player(app.player)
+    prompt_pos = app.world_panel.interaction_prompt_anchor_for_player(app.player, prompt)
+    font = app.small_font
+    text = font.render(prompt, True, (255, 255, 255))
+    click_pos = (prompt_pos[0] + text.get_width() // 2, prompt_pos[1] + text.get_height() // 2)
+
+    pygame.event.post(pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN,
+        {"button": 1, "pos": click_pos},
+    ))
+    app.step_one_frame(0)
+
+    assert app.journal.field_notes == ["Forest Trail: bunny camouflage observed near dense cover."]
+    assert app._status_message == "Observation saved to field journal."
+    app.shutdown()
+
+
 
 def test_app_status_strip_confirms_wildlife_observation_saved():
     import random

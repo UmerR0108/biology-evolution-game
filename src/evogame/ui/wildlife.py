@@ -89,6 +89,6 @@ class Bunny:
         frames = load_bunny_frames()
         dir_frames = frames.get(self._direction) or next(iter(frames.values()))
         frame = dir_frames[int(self._frame_index) % len(dir_frames)]
-        # Scale 16x16 -> 24x24 to match world feel.
-        frame = pygame.transform.scale(frame, (24, 24))
-        surface.blit(frame, (int(origin[0] + self.pos[0] - 12), int(origin[1] + self.pos[1] - 12)))
+        # Scale the full paired 32x16 source to a readable 32x24 world sprite.
+        frame = pygame.transform.scale(frame, (32, 24))
+        surface.blit(frame, (int(origin[0] + self.pos[0] - 16), int(origin[1] + self.pos[1] - 12)))
