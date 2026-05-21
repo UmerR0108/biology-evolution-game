@@ -68,3 +68,16 @@ def test_slider_motion_without_prior_click_is_noop():
     s = Slider(pygame.Rect(0, 0, 100, 20), min_value=0.0, max_value=10.0, initial=5.0)
     s.handle_event(_motion_event((90, 10)))
     assert s.value == 5.0
+
+
+def test_slider_adjust_changes_value_and_clamps_to_range():
+    s = Slider(pygame.Rect(0, 0, 100, 20), min_value=0.5, max_value=5.0, initial=1.0)
+
+    s.adjust(0.5)
+    assert s.value == 1.5
+
+    s.adjust(99.0)
+    assert s.value == 5.0
+
+    s.adjust(-99.0)
+    assert s.value == 0.5

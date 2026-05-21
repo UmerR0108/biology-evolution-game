@@ -25,6 +25,8 @@ def test_visible_fish_constructed_from_creature(pygame_surface):
     fish = VisibleFish.from_creature(creature, pos=(100.0, 100.0), rng=rng)
     assert fish.color in {"red", "pink", "white"}
     assert fish.scale > 0
+    assert 3.0 <= fish.speed <= 8.0
+    assert 1800.0 <= fish.next_turn_in_ms <= 4200.0
 
 
 def test_pond_view_sample_size(pygame_surface):
@@ -36,6 +38,15 @@ def test_pond_view_sample_size(pygame_surface):
     pond = PondView(bounds=scene.pond_pixel_bounds(), max_visible=10, rng=random.Random(1))
     pond.refresh(pop)
     assert 1 <= len(pond.fish) <= 10
+
+
+def test_pond_view_handles_missing_pond_bounds(pygame_surface):
+    from evogame.ui.pond import PondView
+    rng = random.Random(0)
+    pop = [Creature.random(GUPPY_SCHEMA, rng) for _ in range(20)]
+    pond = PondView(bounds=pygame.Rect(0, 0, 0, 0), max_visible=10, rng=random.Random(2))
+    pond.refresh(pop)
+    assert pond.fish == []
 
 
 def test_pond_view_fish_stay_in_bounds(pygame_surface):
@@ -62,3 +73,23 @@ def test_pond_view_draw(pygame_surface):
     pond = PondView(bounds=scene.pond_pixel_bounds(), max_visible=8, rng=random.Random(0))
     pond.refresh(pop)
     pond.draw(pygame_surface, origin=(0, 0))
+
+
+def test_pond_view_draws_ripple_around_visible_fish(monkeypatch):
+    from evogame.ui.pond import PondView
+
+    surface = pygame.Surface((80, 80))
+    surface.fill((0, 0, 0))
+    transparent = pygame.Surface((1, 1), pygame.SRCALPHA)
+    transparent.fill((0, 0, 0, 0))
+    monkeypatch.setattr("evogame.ui.pond.tint_fish", lambda _color: transparent)
+    pond = PondView(bounds=pygame.Rect(0, 0, 80, 80), max_visible=1, rng=random.Random(0))
+    pond.fish = [VisibleFish("red", 1.0, (40.0, 40.0), 0.0, 0.0, 9999.0)]
+
+    pond.draw(surface, origin=(0, 0))
+
+    assert any(
+        surface.get_at((x, y)) != pygame.Color(0, 0, 0, 255)
+        for x in range(28, 53)
+        for y in range(32, 49)
+    )

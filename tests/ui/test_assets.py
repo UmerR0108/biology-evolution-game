@@ -29,6 +29,22 @@ def test_load_bunny_frames_returns_per_direction_lists(pygame_surface):
             assert isinstance(surf, pygame.Surface)
 
 
+def test_decoration_sprites_are_visible(pygame_surface):
+    from evogame.ui.assets import load_decoration_sprite
+
+    for kind in (
+        "bush", "yellow_bush", "rock", "small_rock", "flower_red",
+        "flower_yellow", "stump", "log", "mushroom",
+    ):
+        sprite = load_decoration_sprite(kind)
+        opaque_pixels = 0
+        for x in range(sprite.get_width()):
+            for y in range(sprite.get_height()):
+                if sprite.get_at((x, y)).a:
+                    opaque_pixels += 1
+        assert opaque_pixels > 20, f"{kind} sprite should not be an empty slice"
+
+
 def test_load_player_walk_frames_returns_independent_surfaces(pygame_surface):
     from evogame.ui.assets import load_player_walk_frames
     frames = load_player_walk_frames()
@@ -80,3 +96,37 @@ def test_load_pond_composite_returns_surface(pygame_surface):
     assert isinstance(surf, pygame.Surface)
     w, h = surf.get_size()
     assert w >= 32 and h >= 32  # nontrivial size
+
+
+def test_load_environment_sheets_for_new_art_direction(pygame_surface):
+    from evogame.ui.assets import load_environment_sheet
+    for name in (
+        "waterfall_autotiles",
+        "calm_water_autotiles",
+        "water_sheet",
+        "building_sheet",
+        "item_sheet",
+        "grass_sheet",
+        "cliff_sheet",
+        "forest_reference",
+    ):
+        surf = load_environment_sheet(name)
+        assert isinstance(surf, pygame.Surface)
+        assert surf.get_width() > 0
+        assert surf.get_height() > 0
+
+
+def test_load_cottage_sprite_uses_building_sheet(pygame_surface):
+    from evogame.ui.assets import load_cottage_sprite
+    surf = load_cottage_sprite()
+    assert isinstance(surf, pygame.Surface)
+    assert surf.get_width() >= 100
+    assert surf.get_height() >= 80
+
+
+def test_load_decoration_sprite_returns_item_sprite(pygame_surface):
+    from evogame.ui.assets import load_decoration_sprite
+    surf = load_decoration_sprite("bush")
+    assert isinstance(surf, pygame.Surface)
+    assert surf.get_width() > 0
+    assert surf.get_height() > 0

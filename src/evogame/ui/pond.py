@@ -82,8 +82,8 @@ class VisibleFish:
             scale=scale,
             pos=pos,
             heading=rng.uniform(0, 2 * math.pi),
-            speed=rng.uniform(8.0, 18.0),
-            next_turn_in_ms=rng.uniform(1000.0, 2500.0),
+            speed=rng.uniform(3.0, 8.0),
+            next_turn_in_ms=rng.uniform(1800.0, 4200.0),
         )
 
 
@@ -101,7 +101,7 @@ class PondView:
         return (x, y)
 
     def refresh(self, population: list[Creature]) -> None:
-        if not population:
+        if not population or self.bounds.width <= 12 or self.bounds.height <= 12:
             self.fish = []
             return
         n = min(len(population), self.max_visible)
@@ -117,7 +117,7 @@ class PondView:
             f.next_turn_in_ms -= dt_ms
             if f.next_turn_in_ms <= 0:
                 f.heading = self.rng.uniform(0, 2 * math.pi)
-                f.next_turn_in_ms = self.rng.uniform(1000.0, 2500.0)
+                f.next_turn_in_ms = self.rng.uniform(1800.0, 4200.0)
             dt = dt_ms / 1000.0
             nx = f.pos[0] + math.cos(f.heading) * f.speed * dt
             ny = f.pos[1] + math.sin(f.heading) * f.speed * dt
@@ -133,12 +133,21 @@ class PondView:
     def draw(self, surface: pygame.Surface, origin: tuple[int, int]) -> None:
         ox, oy = origin
         for f in self.fish:
+            ripple_w = max(18, int(24 * f.scale))
+            ripple_h = max(8, int(11 * f.scale))
+            ripple_rect = pygame.Rect(0, 0, ripple_w, ripple_h)
+            ripple_rect.center = (int(ox + f.pos[0]), int(oy + f.pos[1]))
+            pygame.draw.ellipse(surface, (179, 226, 239), ripple_rect, 1)
             sprite = tint_fish(f.color)
-            if f.scale != 1.0:
-                w, h = sprite.get_size()
-                sprite = pygame.transform.scale(sprite, (max(1, int(w * f.scale)), max(1, int(h * f.scale))))
+            water_scale = f.scale * 0.72
+            w, h = sprite.get_size()
+            sprite = pygame.transform.scale(
+                sprite,
+                (max(1, int(w * water_scale)), max(1, int(h * water_scale))),
+            )
             # Flip horizontally based on heading direction
             if math.cos(f.heading) < 0:
                 sprite = pygame.transform.flip(sprite, True, False)
+            sprite.set_alpha(150)
             sw, sh = sprite.get_size()
             surface.blit(sprite, (int(ox + f.pos[0] - sw / 2), int(oy + f.pos[1] - sh / 2)))

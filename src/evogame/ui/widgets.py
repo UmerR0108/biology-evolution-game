@@ -62,10 +62,16 @@ class Slider:
         self.value = max(min_value, min(max_value, initial))
         self._dragging = False
 
+    def _clamp_value(self, value: float) -> float:
+        return max(self.min_value, min(self.max_value, value))
+
     def _set_value_from_x(self, x: int) -> None:
         ratio = (x - self.rect.left) / max(1, self.rect.width)
         ratio = max(0.0, min(1.0, ratio))
         self.value = self.min_value + ratio * (self.max_value - self.min_value)
+
+    def adjust(self, delta: float) -> None:
+        self.value = self._clamp_value(self.value + delta)
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:

@@ -1,5 +1,3 @@
-import pygame
-
 from evogame.ui.tilemap import Tilemap, TILE_PIXELS
 
 
@@ -47,8 +45,8 @@ def test_forest_scene_has_pond_and_dimensions():
         if scene.tilemap.grid[r][c].startswith("water_")
     ]
     assert len(pond_tiles) >= 4, "scene must include a 2x2-or-larger pond"
-    assert any(o.kind == "tree" for o in scene.objects)
-    assert any(o.kind == "cottage" for o in scene.objects)
+    assert any(o.kind.startswith("tree_") for o in scene.objects)
+    assert any(o.kind in {"bush", "rock", "flower_red", "flower_yellow"} for o in scene.objects)
 
 
 def test_forest_scene_pond_bounds_are_inside_grid():
@@ -59,3 +57,34 @@ def test_forest_scene_pond_bounds_are_inside_grid():
     assert bounds.left >= 0 and bounds.top >= 0
     assert bounds.right <= scene.tilemap.pixel_width
     assert bounds.bottom <= scene.tilemap.pixel_height
+    swim = scene.pond_swim_bounds()
+    assert bounds.contains(swim)
+    assert swim.width < bounds.width
+    assert swim.height < bounds.height
+
+
+def test_area_scene_builders_have_expected_id_and_spawn():
+    from evogame.ui.tilemap import build_deep_forest_scene, build_forest_scene, build_home_scene
+    scenes = [build_home_scene(), build_forest_scene(), build_deep_forest_scene()]
+    assert {scene.area_id for scene in scenes} == {"home", "pond", "forest"}
+    for scene in scenes:
+        assert scene.tilemap.is_walkable(
+            int(scene.spawn[0] // TILE_PIXELS),
+            int(scene.spawn[1] // TILE_PIXELS),
+        )
+
+
+def test_deep_forest_scene_has_clearing_water_and_dense_edges():
+    from evogame.ui.tilemap import build_deep_forest_scene
+    scene = build_deep_forest_scene()
+    water_tiles = [
+        (c, r) for r in range(scene.tilemap.rows) for c in range(scene.tilemap.cols)
+        if scene.tilemap.grid[r][c].startswith("water_")
+    ]
+    edge_trees = [
+        obj for obj in scene.objects
+        if obj.kind.startswith("tree_") and (obj.col <= 3 or obj.col >= 24 or obj.row <= 2 or obj.row >= 13)
+    ]
+    assert len(water_tiles) >= 6
+    assert len(edge_trees) >= 12
+    assert scene.tilemap.grid[9][15] in {"forest_light", "forest_floor"}

@@ -9,12 +9,13 @@ from matplotlib.figure import Figure
 from evogame.sim.recorder import GenerationLog
 
 _DPI = 100
-_GENE = "color"
+_DEFAULT_GENE = "color"
 
 
 class ChartPanel:
-    def __init__(self, rect: pygame.Rect):
+    def __init__(self, rect: pygame.Rect, gene: str = _DEFAULT_GENE):
         self.rect = rect
+        self.gene = gene
         width_in = max(1.0, rect.width / _DPI)
         height_in = max(1.0, rect.height / _DPI)
         self.figure = Figure(figsize=(width_in, height_in), dpi=_DPI)
@@ -39,7 +40,7 @@ class ChartPanel:
         if len(log) == 0:
             self._render_placeholder()
             return
-        series = log.frequencies_over_time(_GENE)
+        series = log.frequencies_over_time(self.gene)
         self.figure.clear()
         ax = self.figure.add_subplot(1, 1, 1)
         gens = [r.gen for r in log.records]
@@ -48,8 +49,11 @@ class ChartPanel:
         ax.set_ylim(0, 1)
         ax.set_xlabel("Generation")
         ax.set_ylabel("Allele frequency")
-        ax.set_title(f"{_GENE} alleles")
-        ax.legend(loc="best", fontsize="small")
+        ax.set_title(f"{self.gene} alleles")
+        if series:
+            ax.legend(loc="best", fontsize="small")
+        else:
+            ax.text(0.5, 0.5, f"No {self.gene} data", ha="center", va="center", transform=ax.transAxes)
         ax.grid(True, alpha=0.3)
         self.figure.tight_layout()
         self._blit_to_surface()

@@ -41,13 +41,36 @@ def test_bunny_does_not_enter_water(pygame_surface):
             f"bunny entered non-walkable tile ({col},{row}) at pos={b.pos}"
 
 
-def test_bunny_frame_resets_on_idle_transition(pygame_surface):
-    from evogame.ui.tilemap import build_forest_scene
+def test_bunny_avoids_blocking_object_targets(pygame_surface):
+    from evogame.ui.tilemap import TILE_PIXELS, build_forest_scene
+
+    class SequenceRng:
+        def __init__(self):
+            self.values = iter([
+                2000.0,  # initial idle timer
+                3.5 * TILE_PIXELS, 3.5 * TILE_PIXELS,  # tree tile: should be rejected
+                8.5 * TILE_PIXELS, 8.5 * TILE_PIXELS,  # open grass: should be accepted
+            ])
+
+        def uniform(self, _low, _high):
+            return next(self.values)
+
     scene = build_forest_scene()
+    bunny = Bunny(pos=(100.0, 100.0), scene=scene, rng=SequenceRng())
+
+    target = bunny._pick_target()
+
+    assert target == (8.5 * TILE_PIXELS, 8.5 * TILE_PIXELS)
+    assert scene.is_walkable_at_pixel(*target)
+
+
+def test_bunny_frame_resets_on_idle_transition(pygame_surface):
+    from evogame.ui.tilemap import build_home_scene
+    scene = build_home_scene()
     rng = random.Random(0)
-    b = Bunny(pos=(100.0, 100.0), scene=scene, rng=rng)
+    b = Bunny(pos=(480.0, 352.0), scene=scene, rng=rng)
     b.state = "walk"
-    b._target = (124.0, 100.0)
+    b._target = (504.0, 352.0)
 
     b.update(dt_ms=350.0)
     assert b.state == "walk"
@@ -60,16 +83,30 @@ def test_bunny_frame_resets_on_idle_transition(pygame_surface):
 
 
 def test_bunny_frame_advances_every_350ms(pygame_surface):
-    from evogame.ui.tilemap import build_forest_scene
-    scene = build_forest_scene()
+    from evogame.ui.tilemap import build_home_scene
+    scene = build_home_scene()
     rng = random.Random(0)
-    b = Bunny(pos=(100.0, 100.0), scene=scene, rng=rng)
+    b = Bunny(pos=(480.0, 352.0), scene=scene, rng=rng)
     b.state = "walk"
-    b._target = (200.0, 100.0)
+    b._target = (560.0, 352.0)
 
     b.update(dt_ms=350.0)
 
     assert b._frame_index == 1.0
+
+
+def test_bunny_large_frame_lands_on_target_without_overshooting(pygame_surface):
+    from evogame.ui.tilemap import build_home_scene
+    scene = build_home_scene()
+    rng = random.Random(0)
+    b = Bunny(pos=(480.0, 352.0), scene=scene, rng=rng)
+    b.state = "walk"
+    b._target = (490.0, 352.0)
+
+    b.update(dt_ms=1000.0)
+
+    assert b.pos == (490.0, 352.0)
+    assert b.state == "idle"
 
 
 def test_bunny_draw(pygame_surface):

@@ -30,9 +30,7 @@ class Bunny:
         for _ in range(8):
             tx = self.rng.uniform(0, self.scene.tilemap.pixel_width)
             ty = self.rng.uniform(0, self.scene.tilemap.pixel_height)
-            col = int(tx // TILE_PIXELS)
-            row = int(ty // TILE_PIXELS)
-            if self.scene.tilemap.is_walkable(col, row):
+            if self.scene.is_walkable_at_pixel(tx, ty):
                 return (tx, ty)
         return None
 
@@ -71,14 +69,18 @@ class Bunny:
             return
         self._update_direction(dx, dy)
         step = _BUNNY_SPEED * dt_ms / 1000.0
-        nx = self.pos[0] + dx / dist * step
-        ny = self.pos[1] + dy / dist * step
-        col = int(nx // TILE_PIXELS)
-        row = int(ny // TILE_PIXELS)
-        if self.scene.tilemap.is_walkable(col, row):
+        if step >= dist:
+            nx, ny = tx, ty
+        else:
+            nx = self.pos[0] + dx / dist * step
+            ny = self.pos[1] + dy / dist * step
+        if self.scene.is_walkable_at_pixel(nx, ny):
             self.pos = (nx, ny)
         else:
             # Abandon target if blocked.
+            self._enter_idle()
+            return
+        if step >= dist:
             self._enter_idle()
             return
         self._frame_index = (self._frame_index + dt_ms / _FRAME_ADVANCE_MS) % 3.0

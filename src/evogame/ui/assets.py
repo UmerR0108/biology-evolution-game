@@ -52,14 +52,30 @@ _WATER_PATH = os.path.join(
 )
 _TREE_PACK_ROOT = os.path.join(_ASSETS_ROOT, "trees", "tree_pack")
 _POND_COMPOSITE_PATH = os.path.join(_ASSETS_ROOT, "water", "wateranimate2.png")
+_ENVIRONMENT_SHEETS: dict[str, str] = {
+    "waterfall_autotiles": os.path.join(
+        _ASSETS_ROOT, "tilesets", "new_water", "waterfall-autotiles-anim.png",
+    ),
+    "calm_water_autotiles": os.path.join(
+        _ASSETS_ROOT, "tilesets", "new_water", "calm-water-autotiles-anim.png",
+    ),
+    "water_sheet": os.path.join(_ASSETS_ROOT, "tilesets", "new_water", "watersheet.png"),
+    "building_sheet": os.path.join(
+        _ASSETS_ROOT, "tilesets", "building_pack", "buildingsheet.png",
+    ),
+    "item_sheet": os.path.join(_ASSETS_ROOT, "tilesets", "forest_pack", "itemsheet.png"),
+    "grass_sheet": os.path.join(_ASSETS_ROOT, "tilesets", "forest_pack", "grasssheet.png"),
+    "cliff_sheet": os.path.join(_ASSETS_ROOT, "tilesets", "forest_pack", "cliffsheet.png"),
+    "forest_reference": os.path.join(
+        _ASSETS_ROOT, "tilesets", "forest_pack", "The-Forest-Top-Down-Tileset-Pixel-Art.webp",
+    ),
+}
 
 _TILE = 16
 
 # Slice rects for sprites in free.png. Verified against the PNG by
 # computing per-tile alpha density and per-sprite bounding boxes.
 _TILESET_RECTS: dict[str, tuple[int, int, int, int]] = {
-    # tile (1, 0) - solid grass
-    "grass":     (16,   0, _TILE, _TILE),
     # tree at the right of the houses row, bbox ~(160, 48)-(175, 79)
     "tree":      (160, 48, 16, 32),
     # left cottage; bbox (0, 55)-(79, 127), tile-aligned to (0, 48, 80, 80)
@@ -116,6 +132,23 @@ _LABLADY_CHAR_DOWN_RECT: tuple[int, int, int, int] = (
 # edges: bottom row at y=187..191 is solid grass color (47, 129, 54),
 # confirming no neighboring-tile bleed.
 _POND_COMPOSITE_RECT: tuple[int, int, int, int] = (384, 96, 96, 96)
+# Timber house pieces from the assembled examples on the left side of
+# buildingsheet.png. The source sheet stores the tall roof and lower front
+# as separate pieces, so the loader composites them into one complete house.
+_BUILDING_COTTAGE_ROOF_RECT: tuple[int, int, int, int] = (24, 17, 160, 128)
+_BUILDING_COTTAGE_FRONT_RECT: tuple[int, int, int, int] = (20, 250, 160, 90)
+_BUILDING_COTTAGE_FRONT_Y = 72
+_DECOR_RECTS: dict[str, tuple[int, int, int, int]] = {
+    "bush": (16, 512, 64, 48),
+    "yellow_bush": (96, 512, 64, 48),
+    "rock": (304, 416, 40, 36),
+    "small_rock": (304, 448, 32, 32),
+    "flower_red": (176, 464, 32, 32),
+    "flower_yellow": (304, 464, 32, 32),
+    "stump": (256, 16, 16, 32),
+    "log": (32, 144, 48, 32),
+    "mushroom": (384, 464, 32, 24),
+}
 
 # Tree Pack color suffixes as they appear in the source filenames.
 # The pack uses ALL CAPS suffixes with spaces (e.g. "TREE 6_YELLOWISH GREEN.png").
@@ -223,6 +256,73 @@ def _lablady_walk_rect(direction: str, frame_index: int) -> pygame.Rect:
     return pygame.Rect(x, y, _LABLADY_SPRITE, _LABLADY_SPRITE)
 
 
+def _make_path_tile() -> pygame.Surface:
+    tile = pygame.Surface((_TILE, _TILE), pygame.SRCALPHA)
+    tile.fill((132, 101, 59, 255))
+    for x, y, color in (
+        (2, 3, (154, 123, 77, 255)),
+        (9, 2, (99, 78, 50, 255)),
+        (5, 9, (159, 126, 78, 255)),
+        (12, 11, (105, 79, 48, 255)),
+    ):
+        tile.set_at((x, y), color)
+        tile.set_at((min(_TILE - 1, x + 1), y), color)
+    return tile
+
+
+def _make_grass_tile(variant: int = 0) -> pygame.Surface:
+    base = (94, 143, 72, 255) if variant == 0 else (88, 135, 68, 255)
+    light = (122, 165, 83, 255)
+    dark = (70, 112, 57, 255)
+    tile = pygame.Surface((_TILE, _TILE), pygame.SRCALPHA)
+    tile.fill(base)
+    for x, y, color in (
+        (3, 4, light),
+        (12, 5, dark),
+        (7, 11, light),
+        (14, 13, dark),
+    ):
+        tile.set_at((x, y), color)
+    return tile
+
+
+def _make_forest_floor_tile(variant: int = 0) -> pygame.Surface:
+    if variant == 0:
+        base = (47, 100, 54, 255)
+        light = (71, 132, 69, 255)
+        dark = (31, 72, 43, 255)
+    elif variant == 1:
+        base = (61, 124, 62, 255)
+        light = (93, 154, 77, 255)
+        dark = (38, 88, 47, 255)
+    else:
+        base = (37, 82, 48, 255)
+        light = (57, 111, 58, 255)
+        dark = (24, 58, 36, 255)
+    tile = pygame.Surface((_TILE, _TILE), pygame.SRCALPHA)
+    tile.fill(base)
+    for x, y, color in (
+        (2, 3, light),
+        (10, 4, dark),
+        (5, 12, light),
+        (13, 13, dark),
+        (8, 8, light),
+    ):
+        tile.set_at((x, y), color)
+    return tile
+
+
+def _make_water_tile() -> pygame.Surface:
+    tile = pygame.Surface((_TILE, _TILE), pygame.SRCALPHA)
+    tile.fill((47, 128, 158, 255))
+    for x in range(0, _TILE, 4):
+        tile.set_at((x, 5), (79, 166, 185, 255))
+        tile.set_at((min(_TILE - 1, x + 1), 6), (79, 166, 185, 255))
+    for x in range(2, _TILE, 5):
+        tile.set_at((x, 12), (35, 103, 139, 255))
+    return tile
+
+
 def load_tileset() -> dict[str, pygame.Surface]:
     """Return a dict of named tile surfaces.
 
@@ -235,9 +335,14 @@ def load_tileset() -> dict[str, pygame.Surface]:
     out: dict[str, pygame.Surface] = {}
     for name, (x, y, w, h) in _TILESET_RECTS.items():
         out[name] = sheet.subsurface(pygame.Rect(x, y, w, h)).copy()
+    out["grass"] = _make_grass_tile(0)
+    out["grass_alt"] = _make_grass_tile(1)
+    out["forest_floor"] = _make_forest_floor_tile(0)
+    out["forest_light"] = _make_forest_floor_tile(1)
+    out["forest_dark"] = _make_forest_floor_tile(2)
+    out["path"] = _make_path_tile()
 
-    water_sheet = _load_water_image()
-    water_tile = water_sheet.subsurface(pygame.Rect(*_WATER_TILE_RECT)).copy()
+    water_tile = _make_water_tile()
     for name in _WATER_KEYS:
         out[name] = water_tile.copy()
 
@@ -284,6 +389,27 @@ def load_tree_sprite(tree_id: str, color: str = "green") -> pygame.Surface:
     return sheet.copy()
 
 
+def load_cottage_sprite() -> pygame.Surface:
+    """Return the complete assembled cottage from the building sheet."""
+    sheet = load_environment_sheet("building_sheet")
+    roof = sheet.subsurface(pygame.Rect(*_BUILDING_COTTAGE_ROOF_RECT)).copy()
+    front = sheet.subsurface(pygame.Rect(*_BUILDING_COTTAGE_FRONT_RECT)).copy()
+    width = max(roof.get_width(), front.get_width())
+    height = _BUILDING_COTTAGE_FRONT_Y + front.get_height()
+    cottage = pygame.Surface((width, height), pygame.SRCALPHA)
+    cottage.blit(roof, (0, 0))
+    cottage.blit(front, (0, _BUILDING_COTTAGE_FRONT_Y))
+    return cottage
+
+
+def load_decoration_sprite(kind: str) -> pygame.Surface:
+    """Return a small environment decoration from the item sheet."""
+    if kind not in _DECOR_RECTS:
+        raise ValueError(f"Unknown decoration {kind!r}; expected one of {sorted(_DECOR_RECTS)}")
+    sheet = load_environment_sheet("item_sheet")
+    return sheet.subsurface(pygame.Rect(*_DECOR_RECTS[kind])).copy()
+
+
 def load_pond_composite() -> pygame.Surface:
     """Return the grass-bordered pond composite tile.
 
@@ -311,3 +437,19 @@ def load_player_walk_frames() -> dict[str, list[pygame.Surface]]:
             frames.append(sheet.subsurface(rect).copy())
         out[direction] = frames
     return out
+
+
+@lru_cache(maxsize=16)
+def _load_environment_sheet(name: str) -> pygame.Surface:
+    path = _ENVIRONMENT_SHEETS[name]
+    return _maybe_convert_alpha(pygame.image.load(path))
+
+
+def load_environment_sheet(name: str) -> pygame.Surface:
+    """Return one of the larger environment source sheets by stable name."""
+    if name not in _ENVIRONMENT_SHEETS:
+        raise ValueError(
+            f"Unknown environment sheet {name!r}; expected one of "
+            f"{sorted(_ENVIRONMENT_SHEETS)}"
+        )
+    return _load_environment_sheet(name).copy()

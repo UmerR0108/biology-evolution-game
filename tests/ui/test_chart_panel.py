@@ -49,3 +49,17 @@ def test_chart_panel_axes_have_labels_and_legend():
     assert ax.get_ylim() == (0, 1)
     assert ax.get_legend() is not None
     assert len(ax.get_lines()) == 2
+
+
+def test_chart_panel_can_plot_selected_gene():
+    log = GenerationLog()
+    log.record(0, {"color": {"R": 0.5, "W": 0.5}, "fin_length": {"L": 0.8, "s": 0.2}}, False, 20)
+    log.record(1, {"color": {"R": 0.7, "W": 0.3}, "fin_length": {"L": 0.6, "s": 0.4}}, True, 18)
+    panel = ChartPanel(pygame.Rect(0, 0, 400, 300), gene="fin_length")
+
+    panel.update(log)
+
+    ax = panel.figure.axes[0]
+    assert panel.gene == "fin_length"
+    assert ax.get_title() == "fin_length alleles"
+    assert [line.get_label() for line in ax.get_lines()] == ["L", "s"]
