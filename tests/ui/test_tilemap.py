@@ -87,4 +87,47 @@ def test_deep_forest_scene_has_clearing_water_and_dense_edges():
     ]
     assert len(water_tiles) >= 6
     assert len(edge_trees) >= 12
-    assert scene.tilemap.grid[9][15] in {"forest_light", "forest_floor"}
+    assert scene.tilemap.grid[9][15] in {"forest_light", "forest_floor", "forest_grass_light"}
+
+
+def test_deep_forest_scene_uses_reference_like_layers():
+    from evogame.ui.tilemap import build_deep_forest_scene
+    scene = build_deep_forest_scene()
+    names = {name for row in scene.tilemap.grid for name in row}
+
+    assert {"forest_grass", "forest_grass_light", "forest_grass_dark"} <= names
+    assert any(name.startswith("water_") for name in names)
+    assert any(name.startswith("cliff_") for name in names)
+    assert any(name.startswith("forest_path") or name == "path" for name in names)
+
+
+def test_deep_forest_cliff_tiles_are_not_walkable():
+    from evogame.ui.tilemap import build_deep_forest_scene
+    scene = build_deep_forest_scene()
+    cliff_tiles = [
+        (c, r) for r in range(scene.tilemap.rows) for c in range(scene.tilemap.cols)
+        if scene.tilemap.grid[r][c].startswith("cliff_")
+    ]
+    assert cliff_tiles
+    for c, r in cliff_tiles:
+        assert scene.tilemap.is_walkable(c, r) is False
+
+
+def test_deep_forest_objects_are_not_authored_offscreen():
+    from evogame.ui.tilemap import build_deep_forest_scene
+    scene = build_deep_forest_scene()
+    for obj in scene.objects:
+        assert 0 <= obj.col < scene.tilemap.cols
+        assert 0 <= obj.row < scene.tilemap.rows
+
+
+def test_deep_forest_has_reference_like_prop_density():
+    from evogame.ui.tilemap import build_deep_forest_scene
+    scene = build_deep_forest_scene()
+    kinds = [obj.kind for obj in scene.objects]
+
+    assert sum(k.startswith("tree_") for k in kinds) >= 24
+    assert sum(k in {"bush", "yellow_bush"} for k in kinds) >= 10
+    assert kinds.count("mushroom") >= 4
+    assert sum(k in {"rock", "small_rock"} for k in kinds) >= 6
+    assert sum(k in {"log", "stump"} for k in kinds) >= 4

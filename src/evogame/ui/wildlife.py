@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import pygame
 
+from evogame.genetics import BUNNY_SCHEMA, Creature
 from evogame.ui.assets import load_bunny_frames
 from evogame.ui.tilemap import Scene, TILE_PIXELS
 
@@ -18,8 +19,12 @@ class Bunny:
     pos: tuple[float, float]
     scene: Scene
     rng: random.Random
+    creature: Creature | None = None
 
     def __post_init__(self):
+        if self.creature is None:
+            genetics_rng = self.rng if hasattr(self.rng, "choice") else random.Random(0)
+            self.creature = Creature.random(BUNNY_SCHEMA, genetics_rng)
         self.state: str = "idle"
         self._timer_ms: float = self.rng.uniform(_IDLE_MIN_MS, _IDLE_MAX_MS)
         self._target: tuple[float, float] | None = None

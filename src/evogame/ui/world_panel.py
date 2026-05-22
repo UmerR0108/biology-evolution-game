@@ -198,8 +198,19 @@ class WorldPanel:
                 positions.append((self.rect.left + int(bunny.pos[0]), self.rect.top + int(bunny.pos[1])))
         return positions
 
+    def nearest_observable_bunny_for_player(self, player: "Player") -> Bunny | None:
+        px = player.pos[0] + player.size[0] / 2
+        py = player.pos[1] + player.size[1] / 2
+        nearby = [
+            bunny for bunny in self.wildlife
+            if ((px - bunny.pos[0]) ** 2 + (py - bunny.pos[1]) ** 2) ** 0.5 <= self.WILDLIFE_OBSERVATION_RADIUS
+        ]
+        if not nearby:
+            return None
+        return min(nearby, key=lambda bunny: ((px - bunny.pos[0]) ** 2 + (py - bunny.pos[1]) ** 2))
+
     def wildlife_observation_for_player(self, player: "Player") -> str | None:
-        if self.observable_wildlife_screen_positions(player):
+        if self.nearest_observable_bunny_for_player(player) is not None:
             return "Bunny nearby: observe camouflage and foraging"
         return None
 

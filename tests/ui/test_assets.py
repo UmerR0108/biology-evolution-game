@@ -111,6 +111,17 @@ def test_load_pond_composite_returns_surface(pygame_surface):
     assert w >= 32 and h >= 32  # nontrivial size
 
 
+def test_load_tileset_includes_reference_forest_biome_tiles(pygame_surface):
+    tiles = load_tileset()
+    for name in (
+        "forest_grass", "forest_grass_light", "forest_grass_dark",
+        "forest_path_soft", "cliff_top", "cliff_face", "water_center",
+    ):
+        assert name in tiles
+        assert isinstance(tiles[name], pygame.Surface)
+        assert tiles[name].get_size() == (16, 16)
+
+
 def test_load_environment_sheets_for_new_art_direction(pygame_surface):
     from evogame.ui.assets import load_environment_sheet
     for name in (

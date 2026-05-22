@@ -323,6 +323,22 @@ def _make_water_tile() -> pygame.Surface:
     return tile
 
 
+def _make_cliff_tile(variant: int = 0) -> pygame.Surface:
+    """Return a small rocky/cliff terrain tile for forest elevation bands."""
+    tile = pygame.Surface((_TILE, _TILE), pygame.SRCALPHA)
+    if variant == 0:
+        tile.fill((113, 104, 80, 255))
+        highlights = ((3, 3, (158, 143, 102, 255)), (10, 5, (84, 78, 65, 255)), (5, 12, (68, 64, 55, 255)))
+    else:
+        tile.fill((82, 77, 65, 255))
+        highlights = ((2, 2, (119, 110, 82, 255)), (9, 8, (55, 52, 45, 255)), (13, 13, (46, 44, 38, 255)))
+    for x, y, color in highlights:
+        tile.set_at((x, y), color)
+        if x + 1 < _TILE:
+            tile.set_at((x + 1, y), color)
+    return tile
+
+
 def load_tileset() -> dict[str, pygame.Surface]:
     """Return a dict of named tile surfaces.
 
@@ -340,11 +356,18 @@ def load_tileset() -> dict[str, pygame.Surface]:
     out["forest_floor"] = _make_forest_floor_tile(0)
     out["forest_light"] = _make_forest_floor_tile(1)
     out["forest_dark"] = _make_forest_floor_tile(2)
+    out["forest_grass"] = _make_forest_floor_tile(0)
+    out["forest_grass_light"] = _make_forest_floor_tile(1)
+    out["forest_grass_dark"] = _make_forest_floor_tile(2)
     out["path"] = _make_path_tile()
+    out["forest_path_soft"] = _make_path_tile()
+    out["cliff_top"] = _make_cliff_tile(0)
+    out["cliff_face"] = _make_cliff_tile(1)
 
     water_tile = _make_water_tile()
     for name in _WATER_KEYS:
         out[name] = water_tile.copy()
+    out["water_center"] = water_tile.copy()
 
     lablady_sheet = _load_lablady_image()
     out["char_down"] = lablady_sheet.subsurface(

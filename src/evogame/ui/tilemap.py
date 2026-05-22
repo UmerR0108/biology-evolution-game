@@ -17,7 +17,7 @@ from evogame.ui.assets import load_tileset
 
 TILE_PIXELS = 32  # 16x16 source tiles drawn at 2x scale
 
-_NON_WALKABLE_PREFIXES = ("water_",)
+_NON_WALKABLE_PREFIXES = ("water_", "cliff_")
 _OBJECT_FOOTPRINT_TILES = {
     "cottage": (7, 6),
     "rock": (1, 1),
@@ -138,11 +138,11 @@ def _forest_grid(cols: int, rows: int) -> list[list[str]]:
             edge = c < 4 or c > cols - 5 or r < 3 or r > rows - 4
             clearing = 8 <= c <= 21 and 6 <= r <= 13
             if clearing:
-                name = "forest_light" if (c + r) % 4 else "forest_floor"
+                name = "forest_grass_light" if (c + r) % 4 else "forest_grass"
             elif edge:
-                name = "forest_dark"
+                name = "forest_grass_dark"
             else:
-                name = "forest_floor" if (c * 2 + r) % 5 else "forest_dark"
+                name = "forest_grass" if (c * 2 + r) % 5 else "forest_grass_dark"
             row.append(name)
         grid.append(row)
     return grid
@@ -164,7 +164,7 @@ def _set_pond(grid: list[list[str]], left: int, top: int, pattern: list[str]) ->
             r = top + dr
             c = left + dc
             if 0 <= r < len(grid) and 0 <= c < len(grid[0]):
-                grid[r][c] = "water_nw"
+                grid[r][c] = "water_center"
 
 
 def build_forest_scene() -> Scene:
@@ -242,26 +242,40 @@ def build_deep_forest_scene() -> Scene:
     """Denser forest clearing for slower exploration and wildlife watching."""
     cols, rows = 30, 18
     grid = _forest_grid(cols, rows)
-    _set_path(grid, [(15, 0), (15, 1), (15, 2), (15, 3), (14, 4), (15, 4), (16, 4)])
-    _set_pond(grid, 8, 9, [
-        ".##.",
+    _set_path(grid, [
+        (15, 0), (15, 1), (15, 2), (15, 3), (14, 4), (15, 4), (16, 4),
+        (13, 5), (12, 6), (12, 7), (13, 8), (14, 8),
+    ])
+    _set_pond(grid, 7, 9, [
+        ".###.",
+        "#####",
+        "#####",
+        ".###.",
+    ])
+    _set_pond(grid, 17, 10, [
+        ".###",
         "####",
         ".##.",
     ])
-    _set_pond(grid, 17, 10, [
-        ".##",
-        "###",
-    ])
+    grid[9][15] = "forest_grass_light"
+    for c, r in [(12, 11), (13, 11), (14, 11), (15, 11), (16, 11)]:
+        grid[r][c] = "water_center"
+    for c in range(22, 29):
+        grid[5][c] = "cliff_top"
+    for r in range(6, 13):
+        for c in range(23, 29):
+            if (c + r) % 4 != 0:
+                grid[r][c] = "cliff_face"
     objects = [
-        SceneObject("tree_1", col=-1, row=2),
-        SceneObject("tree_6", col=-1, row=7),
-        SceneObject("tree_10", col=-1, row=13),
-        SceneObject("tree_11", col=2, row=0),
-        SceneObject("tree_3", col=5, row=1),
-        SceneObject("tree_5", col=9, row=0),
-        SceneObject("tree_2", col=20, row=0),
-        SceneObject("tree_5", col=24, row=0),
-        SceneObject("tree_10", col=28, row=1),
+        SceneObject("tree_1", col=0, row=3),
+        SceneObject("tree_6", col=0, row=8),
+        SceneObject("tree_10", col=1, row=14),
+        SceneObject("tree_11", col=2, row=2),
+        SceneObject("tree_3", col=5, row=2),
+        SceneObject("tree_5", col=9, row=2),
+        SceneObject("tree_2", col=20, row=2),
+        SceneObject("tree_5", col=24, row=2),
+        SceneObject("tree_10", col=28, row=2),
         SceneObject("tree_2", col=2, row=5),
         SceneObject("tree_12", col=3, row=10),
         SceneObject("tree_13", col=6, row=14),
@@ -271,25 +285,39 @@ def build_deep_forest_scene() -> Scene:
         SceneObject("tree_4", col=23, row=13),
         SceneObject("tree_14", col=28, row=13),
         SceneObject("tree_11", col=28, row=7),
-        SceneObject("tree_7", col=23, row=5),
+        SceneObject("tree_7", col=21, row=5),
         SceneObject("tree_6", col=18, row=3),
         SceneObject("tree_4", col=9, row=4),
         SceneObject("tree_12", col=22, row=9),
         SceneObject("tree_10", col=1, row=15),
         SceneObject("tree_13", col=26, row=15),
+        SceneObject("tree_8", col=4, row=16),
+        SceneObject("tree_9", col=12, row=3),
         SceneObject("bush", col=7, row=6),
         SceneObject("yellow_bush", col=20, row=7),
         SceneObject("bush", col=5, row=11),
         SceneObject("yellow_bush", col=24, row=8),
+        SceneObject("bush", col=4, row=7),
+        SceneObject("yellow_bush", col=10, row=6),
+        SceneObject("bush", col=16, row=6),
+        SceneObject("yellow_bush", col=21, row=12),
+        SceneObject("bush", col=25, row=14),
+        SceneObject("yellow_bush", col=13, row=13),
         SceneObject("small_rock", col=11, row=7),
         SceneObject("small_rock", col=18, row=9),
         SceneObject("rock", col=13, row=10),
+        SceneObject("small_rock", col=5, row=8),
+        SceneObject("rock", col=20, row=11),
+        SceneObject("small_rock", col=26, row=12),
         SceneObject("flower_yellow", col=10, row=12),
         SceneObject("flower_red", col=19, row=12),
         SceneObject("log", col=21, row=10),
         SceneObject("log", col=12, row=13),
+        SceneObject("log", col=6, row=12),
         SceneObject("mushroom", col=6, row=8),
         SceneObject("mushroom", col=23, row=11),
+        SceneObject("mushroom", col=17, row=13),
+        SceneObject("mushroom", col=27, row=4),
         SceneObject("stump", col=16, row=13),
     ]
     return Scene(

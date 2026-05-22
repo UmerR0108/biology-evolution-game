@@ -10,6 +10,11 @@ _FG = (220, 220, 220)
 _GENE_BUTTON_BG = (49, 62, 74)
 _GENE_BUTTON_ACTIVE = (255, 222, 89)
 _GENE_BUTTON_BORDER = (185, 205, 190)
+_PAPER = (238, 224, 183)
+_INK = (54, 42, 31)
+_PAGE_SHADOW = (141, 111, 73)
+_JOURNAL_PAGES = ("fish", "bunnies", "observations")
+_PAGE_LABELS = {"fish": "Fish Frequencies", "bunnies": "Bunnies", "observations": "Observations"}
 
 
 def _wrap_text_to_width(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
@@ -42,6 +47,7 @@ class Journal:
         self.observation_scroll = 0
         self.chart_genes = tuple(gene.name for gene in sim.schema.genes)
         self.field_notes: list[str] = []
+        self.current_page = "fish"
 
         # Panel = 80% of screen, centered.
         margin_x = int(screen_rect.width * 0.10)
@@ -59,15 +65,14 @@ class Journal:
             24,
         )
 
-        # Layout: chart on the left ~70%, controls on the right ~30%.
-        chart_w = int(self.panel_rect.width * 0.70)
-        controls_x = self.panel_rect.left + chart_w + 16
+        left_content, right_content = self.page_content_rects()
         self.chart_panel = ChartPanel(pygame.Rect(
-            self.panel_rect.left + 16, self.panel_rect.top + 40,
-            chart_w - 16, self.panel_rect.height - 56,
+            left_content.left, left_content.top + 74,
+            left_content.width, left_content.height - 86,
         ))
 
-        ctrl_y = self.panel_rect.top + 60
+        controls_x = right_content.left
+        ctrl_y = right_content.top + 132
         self.predator_toggle = Toggle(
             pygame.Rect(controls_x, ctrl_y, 24, 24),
             "Predator",
@@ -93,7 +98,7 @@ class Journal:
         return f"Speed: {self.gens_per_second:.1f} generations/sec"
 
     def controls_hint_text(self) -> str:
-        return "Space start/stop • N step • G/1-4 chart gene • +/- or wheel speed • PgUp/PgDn notes • Home/End jump • P predator • R reset • J/ESC close"
+        return "Tab/←/→ pages • Space start/stop • N step • G/1-4 chart gene • +/- or wheel speed • PgUp/PgDn notes • Home/End jump • P predator • R reset • J/ESC close"
 
     def toggle(self) -> None:
         self.open = not self.open
@@ -133,13 +138,56 @@ class Journal:
         self.chart_panel.gene = self.chart_genes[index]
         self.chart_panel.update(self.sim.log)
 
+    def book_rect(self) -> pygame.Rect:
+        return self.panel_rect.inflate(-28, -46).move(0, 12)
+
+    def left_page_rect(self) -> pygame.Rect:
+        book = self.book_rect()
+        return pygame.Rect(book.left, book.top, book.width // 2 - 6, book.height)
+
+    def right_page_rect(self) -> pygame.Rect:
+        book = self.book_rect()
+        return pygame.Rect(book.centerx + 6, book.top, book.width // 2 - 6, book.height)
+
+    def book_spine_rect(self) -> pygame.Rect:
+        book = self.book_rect()
+        return pygame.Rect(book.centerx - 6, book.top, 12, book.height)
+
+    def page_content_rects(self) -> tuple[pygame.Rect, pygame.Rect]:
+        return self.left_page_rect().inflate(-28, -36), self.right_page_rect().inflate(-28, -36)
+
+    def page_labels(self) -> dict[str, str]:
+        return dict(_PAGE_LABELS)
+
+    def page_tab_rects(self) -> dict[str, pygame.Rect]:
+        tab_w, tab_h, gap = 150, 24, 6
+        x = self.panel_rect.left + 180
+        y = self.panel_rect.top + 10
+        return {page: pygame.Rect(x + i * (tab_w + gap), y, tab_w, tab_h) for i, page in enumerate(_JOURNAL_PAGES)}
+
+    def _select_page(self, page: str) -> None:
+        if page in _JOURNAL_PAGES:
+            self.current_page = page
+
+    def _select_page_at_pos(self, pos: tuple[int, int]) -> bool:
+        for page, rect in self.page_tab_rects().items():
+            if rect.collidepoint(pos):
+                self._select_page(page)
+                return True
+        return False
+
+    def _cycle_page(self, direction: int = 1) -> None:
+        idx = _JOURNAL_PAGES.index(self.current_page) if self.current_page in _JOURNAL_PAGES else 0
+        self.current_page = _JOURNAL_PAGES[(idx + direction) % len(_JOURNAL_PAGES)]
+
     def chart_gene_button_rects(self) -> dict[str, pygame.Rect]:
-        """Return panel-space chart gene tabs, in the same order as keyboard shortcuts."""
-        button_w = 102
+        """Return fish-page chart gene tabs, in the same order as keyboard shortcuts."""
+        button_w = 82
         button_h = 22
-        gap = 6
-        x = self.chart_panel.rect.left + 112
-        y = self.panel_rect.top + 11
+        gap = 4
+        left_content, _ = self.page_content_rects()
+        x = left_content.left
+        y = left_content.top + 38
         return {
             gene: pygame.Rect(x + index * (button_w + gap), y, button_w, button_h)
             for index, gene in enumerate(self.chart_genes)
@@ -172,7 +220,9 @@ class Journal:
             if not self.panel_rect.collidepoint(event.pos):
                 self.open = False
                 return
-            if self._select_chart_gene_at_pos(event.pos):
+            if self._select_page_at_pos(event.pos):
+                return
+            if self.current_page == "fish" and self._select_chart_gene_at_pos(event.pos):
                 return
         if event.type == pygame.MOUSEWHEEL:
             self.speed_slider.adjust(0.5 * event.y)
@@ -180,6 +230,15 @@ class Journal:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_ESCAPE, pygame.K_j):
                 self.open = False
+                return
+            if event.key == pygame.K_TAB:
+                self._cycle_page(1)
+                return
+            if event.key == pygame.K_RIGHT:
+                self._cycle_page(1)
+                return
+            if event.key == pygame.K_LEFT:
+                self._cycle_page(-1)
                 return
             if event.key == pygame.K_SPACE:
                 self._toggle_pause()
@@ -238,6 +297,66 @@ class Journal:
             return False
         self.field_notes.append(note)
         return True
+    def _shorten_note(self, note: str, max_chars: int = 72) -> str:
+        if len(note) <= max_chars:
+            return note
+        return note[:max_chars - 1].rstrip() + "…"
+
+    def field_notes_by_category(self) -> dict[str, list[str]]:
+        groups = {"home": [], "pond": [], "forest": [], "bunnies": [], "other": []}
+        for note in self.field_notes:
+            lower = note.lower()
+            if "bunny" in lower:
+                groups["bunnies"].append(note)
+            elif note.startswith("Home Base"):
+                groups["home"].append(note)
+            elif note.startswith("Pond Study Site"):
+                groups["pond"].append(note)
+            elif note.startswith("Forest Trail"):
+                groups["forest"].append(note)
+            else:
+                groups["other"].append(note)
+        return groups
+
+    def bunny_field_notes(self) -> list[str]:
+        return self.field_notes_by_category()["bunnies"]
+
+    def fish_summary_cards(self) -> list[str]:
+        if not self.sim.log.records:
+            return ["No fish samples yet", "Press Space/N to record generations", "Predator: Off"]
+        record = self.sim.log.records[-1]
+        cards = [f"Generation {record.gen}", f"Population {record.population_size}", f"Predator: {'On' if record.predator_on else 'Off'}"]
+        freqs = record.allele_freqs.get(self.chart_panel.gene, {})
+        if freqs:
+            allele, freq = max(freqs.items(), key=lambda item: (item[1], item[0]))
+            cards.append(f"Top {self.chart_panel.gene}: {allele} {freq * 100:.0f}%")
+        return [self._shorten_note(card, 44) for card in cards]
+
+    def bunny_page_summary_text(self) -> str:
+        count = len(self.bunny_field_notes())
+        if count == 0:
+            return "No bunny observations yet — explore the forest and press E near bunnies."
+        return f"Bunny observations: {count}"
+
+    def bunny_page_cards(self) -> list[str]:
+        notes = list(reversed(self.bunny_field_notes()))[:5]
+        if not notes:
+            return ["Look for bunnies near cover and pond banks."]
+        return [self._shorten_note(note, 68) for note in notes]
+
+    def observation_checklist_items(self) -> list[tuple[str, bool, str]]:
+        groups = self.field_notes_by_category()
+        return [
+            ("Home documented", bool(groups["home"]), f"{len(groups['home'])} notes"),
+            ("Pond documented", bool(groups["pond"]), f"{len(groups['pond'])} notes"),
+            ("Forest documented", bool(groups["forest"]), f"{len(groups['forest'])} notes"),
+            ("Bunny observed", bool(groups["bunnies"]), f"{len(groups['bunnies'])} sightings"),
+        ]
+
+    def observation_page_sections(self) -> dict[str, list[str]]:
+        groups = self.field_notes_by_category()
+        return {label.title(): [self._shorten_note(note, 66) for note in reversed(notes[-3:])] for label, notes in groups.items() if notes}
+
 
     def _field_note_site_counts(self) -> dict[str, int]:
         counts = {"Home": 0, "Pond": 0, "Forest": 0}
@@ -404,7 +523,12 @@ class Journal:
 
     def _scroll_observation_lines(self, direction: int) -> None:
         page = max(1, self._max_visible_observation_lines() - 1)
-        self.observation_scroll += direction * page
+        if direction > 0 and self.observation_scroll == 0:
+            self.observation_scroll = self._max_observation_scroll()
+        elif direction < 0:
+            self.observation_scroll = 0
+        else:
+            self.observation_scroll += direction * page
         self._clamp_observation_scroll()
 
     def visible_observation_lines(self) -> list[str]:
@@ -438,38 +562,95 @@ class Journal:
             wrapped.extend(_wrap_text_to_width(line, font, max_width))
         return wrapped[:self._max_visible_observation_lines()]
 
+    def _draw_text_lines(self, surface: pygame.Surface, font: pygame.font.Font, lines: list[str], start: tuple[int, int], color: tuple[int, int, int] = _INK, step: int = 22) -> None:
+        x, y = start
+        for line in lines:
+            surface.blit(font.render(line, True, color), (x, y))
+            y += step
+
+    def _draw_book(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        pygame.draw.rect(surface, _PANEL_BG, self.panel_rect)
+        pygame.draw.rect(surface, _FG, self.panel_rect, 2)
+        for rect in (self.left_page_rect(), self.right_page_rect()):
+            pygame.draw.rect(surface, _PAGE_SHADOW, rect.move(4, 4), border_radius=10)
+            pygame.draw.rect(surface, _PAPER, rect, border_radius=10)
+            pygame.draw.rect(surface, (152, 120, 76), rect, 2, border_radius=10)
+        pygame.draw.rect(surface, (108, 79, 54), self.book_spine_rect(), border_radius=4)
+        pygame.draw.rect(surface, (48, 48, 62), self.close_button_rect)
+        pygame.draw.rect(surface, _FG, self.close_button_rect, 1)
+        close_label = font.render("×", True, _FG)
+        surface.blit(close_label, close_label.get_rect(center=self.close_button_rect.center))
+        title = font.render("Field Journal", True, _FG)
+        surface.blit(title, (self.panel_rect.left + 16, self.panel_rect.top + 12))
+
+    def _draw_page_tabs(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        for page, rect in self.page_tab_rects().items():
+            active = page == self.current_page
+            fill = _GENE_BUTTON_ACTIVE if active else _GENE_BUTTON_BG
+            text_color = (42, 67, 45) if active else _FG
+            pygame.draw.rect(surface, fill, rect, border_radius=6)
+            pygame.draw.rect(surface, _GENE_BUTTON_BORDER, rect, 1, border_radius=6)
+            label = font.render(_PAGE_LABELS[page], True, text_color)
+            surface.blit(label, label.get_rect(center=rect.center))
+
+    def _draw_gene_tabs(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        for index, (gene, rect) in enumerate(self.chart_gene_button_rects().items(), start=1):
+            active = gene == self.chart_panel.gene
+            fill = _GENE_BUTTON_ACTIVE if active else (204, 187, 142)
+            text_color = _INK
+            pygame.draw.rect(surface, fill, rect, border_radius=5)
+            pygame.draw.rect(surface, (117, 91, 55), rect, 1, border_radius=5)
+            label = font.render(f"{index} {gene.replace('_', ' ')}", True, text_color)
+            surface.blit(label, label.get_rect(center=rect.center))
+
+    def _draw_fish_page(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        left, right = self.page_content_rects()
+        self._draw_text_lines(surface, font, ["Fish Frequencies"], (left.left, left.top), _INK, 24)
+        self._draw_gene_tabs(surface, font)
+        self.chart_panel.draw(surface)
+        self._draw_text_lines(surface, font, ["At a glance", *self.fish_summary_cards()], (right.left, right.top), _INK, 24)
+        self.predator_toggle.draw(surface, font)
+        speed_label = font.render(self.speed_label_text(), True, _INK)
+        surface.blit(speed_label, (self.speed_slider.rect.left, self.speed_slider.rect.top - 20))
+        self.speed_slider.draw(surface, font)
+        self._sync_pause_button_label()
+        self.pause_button.draw(surface, font)
+
+    def _draw_bunnies_page(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        left, right = self.page_content_rects()
+        self._draw_text_lines(surface, font, ["Bunnies", self.bunny_page_summary_text(), "", "Captured bunnies will later seed the home pen."], (left.left, left.top), _INK, 24)
+        pygame.draw.ellipse(surface, (180, 135, 92), pygame.Rect(left.left + 40, left.top + 130, 82, 46))
+        pygame.draw.ellipse(surface, (180, 135, 92), pygame.Rect(left.left + 52, left.top + 92, 18, 54))
+        pygame.draw.ellipse(surface, (180, 135, 92), pygame.Rect(left.left + 86, left.top + 92, 18, 54))
+        self._draw_text_lines(surface, font, ["Latest sightings", *self.bunny_page_cards()], (right.left, right.top), _INK, 24)
+
+    def _draw_observations_page(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        left, right = self.page_content_rects()
+        lines = ["Observations"]
+        for label, done, status in self.observation_checklist_items():
+            lines.append(f"{'✓' if done else '□'} {label} — {status}")
+        self._draw_text_lines(surface, font, lines, (left.left, left.top), _INK, 24)
+        section_lines = ["Field note cards"]
+        for title, notes in self.observation_page_sections().items():
+            section_lines.append(title)
+            section_lines.extend(f"• {note}" for note in notes[:2])
+        if len(section_lines) == 1:
+            section_lines.append("No notes yet. Press E near field sites.")
+        self._draw_text_lines(surface, font, section_lines[:15], (right.left, right.top), _INK, 22)
+
     def draw(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
         if not self.open:
             return
         backdrop = pygame.Surface(self.screen_rect.size, pygame.SRCALPHA)
         backdrop.fill(_BACKDROP)
         surface.blit(backdrop, self.screen_rect.topleft)
-        pygame.draw.rect(surface, _PANEL_BG, self.panel_rect)
-        pygame.draw.rect(surface, _FG, self.panel_rect, 2)
-        title = font.render("Pond Research Station", True, _FG)
-        surface.blit(title, (self.panel_rect.left + 16, self.panel_rect.top + 12))
-        pygame.draw.rect(surface, (48, 48, 62), self.close_button_rect)
-        pygame.draw.rect(surface, _FG, self.close_button_rect, 1)
-        close_label = font.render("×", True, _FG)
-        surface.blit(close_label, close_label.get_rect(center=self.close_button_rect.center))
-        for index, (gene, rect) in enumerate(self.chart_gene_button_rects().items(), start=1):
-            active = gene == self.chart_panel.gene
-            fill = _GENE_BUTTON_ACTIVE if active else _GENE_BUTTON_BG
-            text_color = (42, 67, 45) if active else _FG
-            pygame.draw.rect(surface, fill, rect, border_radius=5)
-            pygame.draw.rect(surface, _GENE_BUTTON_BORDER, rect, 1, border_radius=5)
-            label = font.render(f"{index} {gene.replace('_', ' ')}", True, text_color)
-            surface.blit(label, label.get_rect(center=rect.center))
-        self.chart_panel.draw(surface)
-        self.predator_toggle.draw(surface, font)
-        speed_label = font.render(self.speed_label_text(), True, _FG)
-        surface.blit(speed_label, (self.speed_slider.rect.left, self.speed_slider.rect.top - 20))
-        self.speed_slider.draw(surface, font)
-        notes_y = self.pause_button.rect.bottom + 28
-        for index, line in enumerate(self.visible_observation_lines_for_width(font)):
-            color = (245, 232, 180) if index == 0 else _FG
-            surface.blit(font.render(line, True, color), (self.pause_button.rect.left, notes_y + index * 20))
-        self._sync_pause_button_label()
-        self.pause_button.draw(surface, font)
+        self._draw_book(surface, font)
+        self._draw_page_tabs(surface, font)
+        if self.current_page == "fish":
+            self._draw_fish_page(surface, font)
+        elif self.current_page == "bunnies":
+            self._draw_bunnies_page(surface, font)
+        else:
+            self._draw_observations_page(surface, font)
         hint = font.render(self.controls_hint_text(), True, _FG)
         surface.blit(hint, (self.panel_rect.left + 16, self.panel_rect.bottom - 24))

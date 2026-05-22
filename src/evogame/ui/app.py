@@ -2,8 +2,11 @@ import random
 
 import pygame
 
-from evogame.genetics import GUPPY_SCHEMA
+from evogame.genetics import BUNNY_SCHEMA, GUPPY_SCHEMA
 from evogame.sim.controller import SimController
+from evogame.sim.habitat import CaptiveHabitat
+from evogame.ui.bunny_capture import BunnyCaptureMinigame
+from evogame.ui.fishing import FishingMinigame
 from evogame.ui.hud import StatusStrip
 from evogame.ui.journal import Journal
 from evogame.ui.player import Player
@@ -41,6 +44,11 @@ class App:
         self.status_strip = StatusStrip(status_rect)
         self.world_panel = WorldPanel(world_rect)
         self.journal = Journal(screen_rect, self.sim)
+        self._gameplay_rng = random.Random(seed)
+        self.home_fish_habitat = CaptiveHabitat("guppy", _CARRYING_CAPACITY, random.Random(seed))
+        self.home_bunny_habitat = CaptiveHabitat("bunny", 40, random.Random(seed))
+        self.fishing_minigame: FishingMinigame | None = None
+        self.bunny_capture_minigame: BunnyCaptureMinigame | None = None
 
         scene = self.world_panel.scene
         self.player = Player(pos=scene.spawn)
@@ -112,6 +120,20 @@ class App:
             duplicate="Observation already in field journal.",
         )
 
+    def _start_fishing(self) -> None:
+        self.fishing_minigame = FishingMinigame(list(self.sim.population.creatures), self._gameplay_rng)
+        self._status_message = "Fishing started: hold/release Space to keep tension in the gold zone."
+        self._status_message_ms = 2500.0
+
+    def _start_bunny_capture(self) -> bool:
+        bunny = self.world_panel.nearest_observable_bunny_for_player(self.player)
+        if bunny is None or bunny.creature is None:
+            return False
+        self.bunny_capture_minigame = BunnyCaptureMinigame(bunny.creature, self._gameplay_rng)
+        self._status_message = "Bunny capture started: approach without spooking it."
+        self._status_message_ms = 2500.0
+        return True
+
     def _record_home_base_note(self) -> None:
         added = self.journal.add_field_note(self._area_survey_note("home"))
         self._set_note_status_message(
@@ -141,6 +163,10 @@ class App:
 
     def _handle_events(self) -> None:
         for event in pygame.event.get():
+            if self.fishing_minigame is not None:
+                self.fishing_minigame.handle_event(event)
+            if self.bunny_capture_minigame is not None:
+                self.bunny_capture_minigame.handle_event(event)
             if event.type == pygame.QUIT:
                 self.running = False
                 continue
@@ -167,17 +193,30 @@ class App:
                 if event.key in (pygame.K_e, pygame.K_RETURN):
                     near_cottage = self.world_panel.cottage_in_range(self.player)
                     near_pond = self.world_panel.pond_in_range(self.player)
-                    if near_cottage or near_pond:
+                    if near_cottage:
                         self.journal.open = True
-                        if near_cottage:
-                            self._record_home_base_note()
-                        if near_pond:
-                            self._record_pond_sample()
+                        self._record_home_base_note()
                         self.world_panel.pond_view.refresh(self.sim.population.creatures)
+                        continue
+                    if near_pond:
+                        self.journal.open = True
+                        previous_message = self._status_message
+                        previous_message_ms = self._status_message_ms
+                        self._record_pond_sample()
+                        sample_message = self._status_message
+                        sample_message_ms = self._status_message_ms
+                        if self.fishing_minigame is None:
+                            self.fishing_minigame = FishingMinigame(list(self.sim.population.creatures), self._gameplay_rng)
+                        self._status_message = sample_message or previous_message
+                        self._status_message_ms = sample_message_ms or previous_message_ms
                         continue
                     wildlife_note = self.world_panel.wildlife_field_note_for_player(self.player)
                     if wildlife_note is not None:
                         self._record_wildlife_observation(wildlife_note)
+                        if self.bunny_capture_minigame is None:
+                            bunny = self.world_panel.nearest_observable_bunny_for_player(self.player)
+                            if bunny is not None and bunny.creature is not None:
+                                self.bunny_capture_minigame = BunnyCaptureMinigame(bunny.creature, self._gameplay_rng)
                         continue
                     next_area = self.world_panel.area_exit_target_for_player(self.player)
                     if next_area is not None:
@@ -244,7 +283,29 @@ class App:
 
     def step_one_frame(self, dt_ms: float) -> None:
         self._handle_events()
-        if not self.journal.open:
+        if self.fishing_minigame is not None:
+            result = self.fishing_minigame.update(dt_ms)
+            if result is not None:
+                if result.success and result.creature is not None:
+                    self.home_fish_habitat.add_founder(result.creature)
+                    self._status_message = f"Caught guppy added to home pond founders ({len(self.home_fish_habitat.founders)})."
+                else:
+                    self._status_message = "The guppy got away."
+                self._status_message_ms = 2500.0
+                self.fishing_minigame = None
+        if self.bunny_capture_minigame is not None:
+            result = self.bunny_capture_minigame.update(dt_ms)
+            if result is not None:
+                if result.success and result.creature is not None:
+                    self.home_bunny_habitat.add_founder(result.creature)
+                    self._status_message = f"Caught bunny added to home pen founders ({len(self.home_bunny_habitat.founders)})."
+                else:
+                    self._status_message = "The bunny bolted into the brush."
+                self._status_message_ms = 2500.0
+                self.bunny_capture_minigame = None
+        self.home_fish_habitat.tick()
+        self.home_bunny_habitat.tick()
+        if not self.journal.open and self.fishing_minigame is None and self.bunny_capture_minigame is None:
             keys = pygame.key.get_pressed()
             self.player.handle_input(keys)
             self.player.update(dt_ms, self.world_panel.scene)
@@ -279,6 +340,10 @@ class App:
     def _render(self) -> None:
         self.screen.fill((10, 10, 15))
         self.world_panel.draw(self.screen, player=self.player, font=self.small_font)
+        if self.fishing_minigame is not None:
+            self.fishing_minigame.draw(self.screen, self.font)
+        if self.bunny_capture_minigame is not None:
+            self.bunny_capture_minigame.draw(self.screen, self.font)
         field_note_sites, total_field_note_sites = self.journal.field_note_site_progress()
         self.status_strip.draw(
             self.screen, self.small_font,
