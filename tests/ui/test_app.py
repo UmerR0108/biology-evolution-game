@@ -451,6 +451,29 @@ def test_app_status_strip_announces_area_transition():
     app.shutdown()
 
 
+def test_app_passes_captive_habitat_counts_to_home_world_panel():
+    from evogame.genetics import BUNNY_SCHEMA, GUPPY_SCHEMA, Creature
+
+    app = App(seed=0)
+    app.home_fish_habitat.add_founder(Creature.random(GUPPY_SCHEMA, app._gameplay_rng))
+    app.home_bunny_habitat.add_founder(Creature.random(BUNNY_SCHEMA, app._gameplay_rng))
+    app.home_bunny_habitat.add_founder(Creature.random(BUNNY_SCHEMA, app._gameplay_rng))
+    captured = {}
+
+    def fake_draw(*args, **kwargs):
+        captured.update(kwargs)
+
+    app.world_panel.draw = fake_draw
+
+    app.step_one_frame(0)
+
+    assert captured["home_fish_founders"] == 1
+    assert captured["home_fish_generation"] == app.home_fish_habitat.generation
+    assert captured["home_bunny_founders"] == 2
+    assert captured["home_bunny_generation"] == app.home_bunny_habitat.generation
+    app.shutdown()
+
+
 def test_app_current_area_shortcut_does_not_warp_player():
     app = App(seed=0)
     app.player.pos = (123.0, 234.0)

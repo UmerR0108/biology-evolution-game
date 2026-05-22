@@ -127,6 +127,39 @@ def test_world_panel_draws_unvisited_minimap_nodes_dimmed():
     assert surface.get_at(nodes["home"].center) == pygame.Color(*panel.MINIMAP_VISITED, 255)
 
 
+def test_world_panel_home_base_exposes_captive_habitat_rects():
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+
+    rects = panel.home_habitat_rects()
+
+    assert set(rects) == {"fish", "bunny"}
+    assert rects["fish"].left < rects["bunny"].left
+    assert rects["fish"].top > 300
+    assert rects["bunny"].top > 300
+
+
+def test_world_panel_draws_home_captive_habitat_areas_when_at_home():
+    pygame.font.init()
+    surface = pygame.Surface((1000, 620))
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    font = pygame.font.SysFont("arial", 12)
+
+    panel.draw(
+        surface,
+        font=font,
+        home_fish_founders=2,
+        home_fish_generation=5,
+        home_bunny_founders=1,
+        home_bunny_generation=0,
+    )
+
+    rects = panel.home_habitat_rects()
+    fish_pixel = surface.get_at(rects["fish"].center)
+    bunny_pixel = surface.get_at(rects["bunny"].center)
+    assert fish_pixel.b > fish_pixel.r
+    assert bunny_pixel.r > bunny_pixel.b
+
+
 def test_world_panel_reports_clicked_minimap_area():
     panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
     nodes = panel.area_minimap_node_rects()

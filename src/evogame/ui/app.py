@@ -339,7 +339,15 @@ class App:
 
     def _render(self) -> None:
         self.screen.fill((10, 10, 15))
-        self.world_panel.draw(self.screen, player=self.player, font=self.small_font)
+        self.world_panel.draw(
+            self.screen,
+            player=self.player,
+            font=self.small_font,
+            home_fish_founders=len(self.home_fish_habitat.founders),
+            home_fish_generation=self.home_fish_habitat.generation,
+            home_bunny_founders=len(self.home_bunny_habitat.founders),
+            home_bunny_generation=self.home_bunny_habitat.generation,
+        )
         if self.fishing_minigame is not None:
             self.fishing_minigame.draw(self.screen, self.font)
         if self.bunny_capture_minigame is not None:

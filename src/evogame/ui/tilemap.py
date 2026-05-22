@@ -240,7 +240,7 @@ def build_home_scene() -> Scene:
 
 def build_deep_forest_scene() -> Scene:
     """Denser forest clearing for slower exploration and wildlife watching."""
-    cols, rows = 30, 18
+    cols, rows = 32, 19
     grid = _forest_grid(cols, rows)
     _set_path(grid, [
         (15, 0), (15, 1), (15, 2), (15, 3), (14, 4), (15, 4), (16, 4),
@@ -260,39 +260,42 @@ def build_deep_forest_scene() -> Scene:
     grid[9][15] = "forest_grass_light"
     for c, r in [(12, 11), (13, 11), (14, 11), (15, 11), (16, 11)]:
         grid[r][c] = "water_center"
-    for c in range(22, 29):
+    for c in range(22, 31):
         grid[5][c] = "cliff_top"
     for r in range(6, 13):
-        for c in range(23, 29):
+        for c in range(23, 31):
             if (c + r) % 4 != 0:
                 grid[r][c] = "cliff_face"
     objects = [
-        SceneObject("tree_1", col=0, row=3),
-        SceneObject("tree_6", col=0, row=8),
-        SceneObject("tree_10", col=1, row=14),
-        SceneObject("tree_11", col=2, row=2),
-        SceneObject("tree_3", col=5, row=2),
-        SceneObject("tree_5", col=9, row=2),
-        SceneObject("tree_2", col=20, row=2),
-        SceneObject("tree_5", col=24, row=2),
-        SceneObject("tree_10", col=28, row=2),
-        SceneObject("tree_2", col=2, row=5),
+        # Trees are inset away from fixed UI chrome and screen edges so the
+        # canopy reads as intentionally placed forest cover instead of cropped
+        # sprites hiding behind HUD panels.
+        SceneObject("tree_1", col=2, row=4),
+        SceneObject("tree_6", col=1, row=8),
+        SceneObject("tree_10", col=2, row=15),
+        SceneObject("tree_11", col=5, row=3),
+        SceneObject("tree_3", col=7, row=3),
+        SceneObject("tree_5", col=12, row=3),
+        SceneObject("tree_2", col=20, row=4),
+        SceneObject("tree_5", col=24, row=4),
+        SceneObject("tree_10", col=29, row=4),
+        SceneObject("tree_2", col=3, row=6),
         SceneObject("tree_12", col=3, row=10),
         SceneObject("tree_13", col=6, row=14),
         SceneObject("tree_2", col=11, row=15),
         SceneObject("tree_14", col=15, row=14),
         SceneObject("tree_3", col=19, row=15),
         SceneObject("tree_4", col=23, row=13),
-        SceneObject("tree_14", col=28, row=13),
-        SceneObject("tree_11", col=28, row=7),
-        SceneObject("tree_7", col=21, row=5),
-        SceneObject("tree_6", col=18, row=3),
-        SceneObject("tree_4", col=9, row=4),
+        SceneObject("tree_14", col=29, row=13),
+        SceneObject("tree_11", col=29, row=7),
+        SceneObject("tree_7", col=21, row=6),
+        SceneObject("tree_6", col=18, row=4),
+        SceneObject("tree_4", col=9, row=5),
         SceneObject("tree_12", col=22, row=9),
-        SceneObject("tree_10", col=1, row=15),
+        SceneObject("tree_10", col=1, row=16),
         SceneObject("tree_13", col=26, row=15),
         SceneObject("tree_8", col=4, row=16),
-        SceneObject("tree_9", col=12, row=3),
+        SceneObject("tree_9", col=13, row=4),
         SceneObject("bush", col=7, row=6),
         SceneObject("yellow_bush", col=20, row=7),
         SceneObject("bush", col=5, row=11),

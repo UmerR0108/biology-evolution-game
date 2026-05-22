@@ -35,6 +35,10 @@ class WorldPanel:
     EXIT_MARKER_FILL = (255, 222, 89)
     EXIT_MARKER_BORDER = (42, 67, 45)
     EXIT_MARKER_CLICK_MARGIN = 6
+    HOME_POND_FILL = (79, 164, 191)
+    HOME_POND_EDGE = (37, 93, 118)
+    HOME_PEN_FILL = (170, 122, 72)
+    HOME_PEN_EDGE = (93, 58, 32)
     AREA_GUIDANCE: dict[str, tuple[str, str]] = {
         "home": (
             "Home Base",
@@ -309,6 +313,53 @@ class WorldPanel:
         pygame.draw.ellipse(overlay, (108, 178, 91, 12), pygame.Rect(330, 280, 260, 140))
         surface.blit(overlay, self.rect.topleft)
 
+    def home_habitat_rects(self) -> dict[str, pygame.Rect]:
+        """Return screen-space home pond and bunny pen rects for founder displays."""
+        return {
+            "fish": pygame.Rect(self.rect.left + 92, self.rect.top + 394, 168, 82),
+            "bunny": pygame.Rect(self.rect.left + 676, self.rect.top + 382, 190, 106),
+        }
+
+    def _draw_home_habitats(
+        self,
+        surface: pygame.Surface,
+        font: pygame.font.Font | None,
+        *,
+        home_fish_founders: int = 0,
+        home_fish_generation: int = 0,
+        home_bunny_founders: int = 0,
+        home_bunny_generation: int = 0,
+    ) -> None:
+        if self.area_id != "home":
+            return
+        rects = self.home_habitat_rects()
+        fish_rect = rects["fish"]
+        pygame.draw.ellipse(surface, self.HOME_POND_FILL, fish_rect)
+        pygame.draw.ellipse(surface, self.HOME_POND_EDGE, fish_rect, 3)
+        pygame.draw.ellipse(surface, (141, 211, 219), fish_rect.inflate(-28, -30), 2)
+
+        pen_rect = rects["bunny"]
+        pygame.draw.rect(surface, self.HOME_PEN_FILL, pen_rect, border_radius=8)
+        pygame.draw.rect(surface, self.HOME_PEN_EDGE, pen_rect, 3, border_radius=8)
+        for x in range(pen_rect.left + 12, pen_rect.right, 28):
+            pygame.draw.line(surface, self.HOME_PEN_EDGE, (x, pen_rect.top + 4), (x, pen_rect.bottom - 4), 3)
+        pygame.draw.line(surface, self.HOME_PEN_EDGE, (pen_rect.left + 6, pen_rect.centery), (pen_rect.right - 6, pen_rect.centery), 3)
+
+        if font is None:
+            return
+        labels = [
+            (fish_rect, f"Home pond founders {home_fish_founders} · Gen {home_fish_generation}"),
+            (pen_rect, f"Bunny pen founders {home_bunny_founders} · Gen {home_bunny_generation}"),
+        ]
+        for rect, text in labels:
+            text_surf = font.render(text, True, (247, 250, 232))
+            pad = pygame.Rect(rect.left + 8, rect.top - 18, text_surf.get_width() + 8, text_surf.get_height() + 4)
+            overlay = pygame.Surface(pad.size, pygame.SRCALPHA)
+            overlay.fill((18, 32, 24, 176))
+            surface.blit(overlay, pad.topleft)
+            pygame.draw.rect(surface, (236, 246, 221), pad, 1, border_radius=4)
+            surface.blit(text_surf, (pad.left + 4, pad.top + 2))
+
     def area_exit_marker_rects(self) -> dict[str, pygame.Rect]:
         """Return screen-space signpost rects for exits from the current area."""
         marker_size = (74, 24)
@@ -447,7 +498,17 @@ class WorldPanel:
                 label_pos = (rect.centerx - text.get_width() // 2, rect.bottom + 1)
                 surface.blit(text, label_pos)
 
-    def draw(self, surface: pygame.Surface, player: "Player | None" = None, font: pygame.font.Font | None = None) -> None:
+    def draw(
+        self,
+        surface: pygame.Surface,
+        player: "Player | None" = None,
+        font: pygame.font.Font | None = None,
+        *,
+        home_fish_founders: int = 0,
+        home_fish_generation: int = 0,
+        home_bunny_founders: int = 0,
+        home_bunny_generation: int = 0,
+    ) -> None:
         # The playfield is 1000x596, which is intentionally not an exact
         # multiple of the 32px tile size. Fill the panel first so the partial
         # right/bottom gutters still read as terrain instead of black screen.
@@ -471,6 +532,14 @@ class WorldPanel:
             else:
                 y = self.rect.top + obj.row * TILE_PIXELS
             surface.blit(sprite, (x, y))
+        self._draw_home_habitats(
+            surface,
+            font,
+            home_fish_founders=home_fish_founders,
+            home_fish_generation=home_fish_generation,
+            home_bunny_founders=home_bunny_founders,
+            home_bunny_generation=home_bunny_generation,
+        )
         # Bunnies drawn after objects, before pond fish (so a bunny near a tree appears in front of the tree).
         for b in self.wildlife:
             b.draw(surface, origin=(self.rect.left, self.rect.top))

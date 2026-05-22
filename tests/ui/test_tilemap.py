@@ -121,6 +121,66 @@ def test_deep_forest_objects_are_not_authored_offscreen():
         assert 0 <= obj.row < scene.tilemap.rows
 
 
+def test_deep_forest_map_overscans_playfield_to_avoid_flat_filler_edges():
+    from evogame.ui.tilemap import build_deep_forest_scene
+    scene = build_deep_forest_scene()
+
+    assert scene.tilemap.pixel_width >= 1000
+    assert scene.tilemap.pixel_height >= 596
+
+
+def test_deep_forest_tree_sprites_do_not_collide_with_persistent_ui_chrome():
+    from evogame.ui.assets import load_tree_sprite
+    from evogame.ui.tilemap import TILE_PIXELS, build_deep_forest_scene
+
+    scene = build_deep_forest_scene()
+    blocked = [
+        # Area title card, northern exit sign, and minimap in panel-local coords.
+        (8, 6, 356, 72),
+        (450, 6, 100, 40),
+        (836, 6, 156, 84),
+    ]
+    for obj in scene.objects:
+        if not obj.kind.startswith("tree_"):
+            continue
+        tree_id = obj.kind.removeprefix("tree_")
+        sprite = load_tree_sprite(tree_id, "green")
+        x = obj.col * TILE_PIXELS
+        y = obj.row * TILE_PIXELS - (sprite.get_height() - TILE_PIXELS)
+        rect = (x, y, sprite.get_width(), sprite.get_height())
+        for bx, by, bw, bh in blocked:
+            assert not (
+                rect[0] < bx + bw
+                and rect[0] + rect[2] > bx
+                and rect[1] < by + bh
+                and rect[1] + rect[3] > by
+            ), f"{obj.kind} at {(obj.col, obj.row)} is visually hidden/cut by fixed UI chrome"
+
+
+def test_deep_forest_large_sprites_have_safe_visible_margins():
+    from evogame.ui.assets import load_decoration_sprite, load_tree_sprite
+    from evogame.ui.tilemap import TILE_PIXELS, build_deep_forest_scene
+
+    scene = build_deep_forest_scene()
+    panel_width, panel_height = 1000, 596
+    for obj in scene.objects:
+        if obj.kind.startswith("tree_"):
+            sprite = load_tree_sprite(obj.kind.removeprefix("tree_"), "green")
+        elif obj.kind in {"bush", "yellow_bush", "rock", "small_rock", "stump", "log", "mushroom"}:
+            sprite = load_decoration_sprite(obj.kind)
+        else:
+            continue
+
+        x = obj.col * TILE_PIXELS
+        y = obj.row * TILE_PIXELS
+        if obj.kind.startswith("tree_") or sprite.get_height() > TILE_PIXELS:
+            y -= sprite.get_height() - TILE_PIXELS
+        assert x >= 8, f"{obj.kind} at {(obj.col, obj.row)} hugs the left screen edge"
+        assert y >= 8, f"{obj.kind} at {(obj.col, obj.row)} hugs the top screen edge"
+        assert x + sprite.get_width() <= panel_width - 8, f"{obj.kind} at {(obj.col, obj.row)} is cut by right edge"
+        assert y + sprite.get_height() <= panel_height - 8, f"{obj.kind} at {(obj.col, obj.row)} is cut by bottom edge"
+
+
 def test_deep_forest_has_reference_like_prop_density():
     from evogame.ui.tilemap import build_deep_forest_scene
     scene = build_deep_forest_scene()
