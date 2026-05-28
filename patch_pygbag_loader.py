@@ -16,6 +16,10 @@ _TEXT_PY_SCRIPT_RE = re.compile(
     r"<script\b(?=[^>]*\btype=[\"']text/python[\"'])[^>]*>(.*?)</script>",
     re.IGNORECASE | re.DOTALL,
 )
+_PYGAME_WEB_BOOT_SCRIPT_RE = re.compile(
+    r"<script\b(?=[^>]*\bid=[\"']site[\"'])[^>]*>#<!--\s*\n?(.*?)\n?#\s*--></script>",
+    re.IGNORECASE | re.DOTALL,
+)
 _SOURCE_LINE_RE = re.compile(
     r"^(?P<indent>[ \t]*)await shell\.source\(main, callback=ui_callback\)$",
     re.MULTILINE,
@@ -34,8 +38,10 @@ _ARCHIVE_FETCH_RE = re.compile(r'platform\.fopen\("(?P<name>[^"]+\.(?:apk|tar\.g
 
 
 def embedded_python_blocks(html: str) -> list[str]:
-    """Return the embedded pygbag Python blocks from generated HTML."""
-    return [match.group(1).strip("\n") for match in _TEXT_PY_SCRIPT_RE.finditer(html)]
+    """Return embedded Python blocks from generated pygbag HTML."""
+    blocks = [match.group(1).strip("\n") for match in _TEXT_PY_SCRIPT_RE.finditer(html)]
+    blocks.extend(match.group(1).strip("\n") for match in _PYGAME_WEB_BOOT_SCRIPT_RE.finditer(html))
+    return blocks
 
 
 def disable_pygbag_ume_gate(html: str) -> str:

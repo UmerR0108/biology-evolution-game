@@ -62,6 +62,20 @@ async def main():
         compile(block, "patched-index.html", "exec")
 
 
+def test_embedded_python_blocks_extracts_pygame_web_boot_script():
+    html = '''<html><script src="https://pygame-web.github.io/cdn/0.9.3/pythons.js" type=module id="site" async defer>#<!--
+async def custom_site():
+    await shell.source(main, callback=ui_callback)
+asyncio.run(custom_site())
+# --></script><head></head></html>'''
+
+    blocks = embedded_python_blocks(html)
+
+    assert len(blocks) == 1
+    assert "async def custom_site" in blocks[0]
+    compile(blocks[0], "generated-index.html", "exec")
+
+
 def test_pygbag_loader_patch_cache_busts_archive_fetches_for_stale_github_pages_assets(monkeypatch):
     monkeypatch.setenv("GITHUB_SHA", "abcdef1234567890")
     html = """
