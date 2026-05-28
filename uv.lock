@@ -107,19 +107,19 @@ name = "evogame"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "matplotlib" },
     { name = "pygame" },
     { name = "pygbag" },
 ]
 
 [package.optional-dependencies]
 dev = [
+    { name = "matplotlib" },
     { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", specifier = ">=3.8" },
+    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.8" },
     { name = "pygame", specifier = ">=2.5" },
     { name = "pygbag", specifier = ">=0.9.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
