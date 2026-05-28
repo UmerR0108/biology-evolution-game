@@ -1,7 +1,11 @@
 import re
 from pathlib import Path
 
-from patch_pygbag_loader import hide_pygbag_infobox, embedded_python_blocks
+from patch_pygbag_loader import (
+    disable_pygbag_ume_gate,
+    embedded_python_blocks,
+    hide_pygbag_infobox,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +52,36 @@ async def main():
     assert re.search(r"^            try:$", patched, re.MULTILINE)
     assert re.search(r"^                await shell\.source\(main, callback=ui_callback\)$", patched, re.MULTILINE)
     assert re.search(r"^                platform\.window\.infobox\.innerText = traceback\.format_exc\(\)$", patched, re.MULTILINE)
+    for block in embedded_python_blocks(patched):
+        compile(block, "patched-index.html", "exec")
+
+
+def test_pygbag_loader_patch_skips_mobile_ume_gate_even_when_template_ignores_flag():
+    html = """
+<html><body>
+<script type="text/python">
+async def custom_site():
+    main = appdir / "assets" / "main.py"
+
+    # test/wait user media interaction
+    if not platform.window.MM.UME:
+
+        msg  = "Ready to start ! Please click/touch page"
+        platform.window.infobox.innerText = msg
+        while not platform.window.MM.UME:
+            await asyncio.sleep(.1)
+    # start async top level machinery if not started and add a console in any case if requested.
+    await TopLevel_async_handler.start_toplevel(platform.shell, console=window.python.config.debug)
+</script>
+</body></html>
+"""
+
+    patched = disable_pygbag_ume_gate(html)
+
+    assert "Hermes patch: skip pygbag UME gate" in patched
+    assert "platform.window.MM.UME = True" in patched
+    assert "while not platform.window.MM.UME" not in patched
+    assert "Ready to start" not in patched
     for block in embedded_python_blocks(patched):
         compile(block, "patched-index.html", "exec")
 

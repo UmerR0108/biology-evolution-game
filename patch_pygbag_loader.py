@@ -19,7 +19,15 @@ _SOURCE_LINE_RE = re.compile(
     r"^(?P<indent>[ \t]*)await shell\.source\(main, callback=ui_callback\)$",
     re.MULTILINE,
 )
+_UME_GATE_RE = re.compile(
+    r"^(?P<indent>[ \t]*)# test/wait user media interaction\n"
+    r"(?P=indent)if not platform\.window\.MM\.UME:\n"
+    r"(?P<body>(?:(?P=indent)[ \t]+.*\n|\n)+?)"
+    r"(?P=indent)# start async top level machinery",
+    re.MULTILINE,
+)
 _ERROR_OVERLAY_MARKER = "traceback.format_exc()"
+_UME_PATCH_MARKER = "Hermes patch: skip pygbag UME gate"
 
 
 def embedded_python_blocks(html: str) -> list[str]:
@@ -27,10 +35,30 @@ def embedded_python_blocks(html: str) -> list[str]:
     return [match.group(1).strip("\n") for match in _TEXT_PY_SCRIPT_RE.finditer(html)]
 
 
+def disable_pygbag_ume_gate(html: str) -> str:
+    """Skip pygbag's generated media-engagement gate for mobile-safe startup."""
+    if _UME_PATCH_MARKER in html:
+        return html
+
+    def replacement(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        return "\n".join(
+            [
+                f"{indent}# test/wait user media interaction",
+                f"{indent}# {_UME_PATCH_MARKER}: Railway/mobile Safari can stay gray here even with --ume_block 0.",
+                f"{indent}platform.window.MM.UME = True",
+                f"{indent}# start async top level machinery",
+            ]
+        )
+
+    patched, _count = _UME_GATE_RE.subn(replacement, html, count=1)
+    return patched
+
+
 def hide_pygbag_infobox(html: str) -> str:
     """Wrap pygbag app loading so browser startup errors are visible and syntax-safe."""
     if _ERROR_OVERLAY_MARKER in html:
-        return html
+        return disable_pygbag_ume_gate(html)
 
     def replacement(match: re.Match[str]) -> str:
         indent = match.group("indent")
@@ -52,7 +80,7 @@ def hide_pygbag_infobox(html: str) -> str:
     patched, count = _SOURCE_LINE_RE.subn(replacement, html, count=1)
     if count != 1:
         raise RuntimeError("Could not find pygbag shell.source loader line in index.html")
-    return patched
+    return disable_pygbag_ume_gate(patched)
 
 
 def patch_index(path: str | Path) -> None:
