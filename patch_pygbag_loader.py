@@ -7,6 +7,7 @@ loader. Keep this logic in Python so tests can validate the exact transformation
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -28,6 +29,8 @@ _UME_GATE_RE = re.compile(
 )
 _ERROR_OVERLAY_MARKER = "traceback.format_exc()"
 _UME_PATCH_MARKER = "Hermes patch: skip pygbag UME gate"
+_ARCHIVE_CACHE_BUSTER_MARKER = "Hermes patch: cache-bust pygbag archive"
+_ARCHIVE_FETCH_RE = re.compile(r'platform\.fopen\("(?P<name>[^"]+\.(?:apk|tar\.gz))", "rb"\)')
 
 
 def embedded_python_blocks(html: str) -> list[str]:
@@ -55,10 +58,27 @@ def disable_pygbag_ume_gate(html: str) -> str:
     return patched
 
 
+def cache_bust_archive_fetches(html: str) -> str:
+    """Append a deployment version to pygbag archive fetches to avoid stale gray-screen bundles."""
+    if _ARCHIVE_CACHE_BUSTER_MARKER in html:
+        return html
+
+    version = os.environ.get("GITHUB_SHA", "local")[:12]
+
+    def replacement(match: re.Match[str]) -> str:
+        name = match.group("name")
+        return f'platform.fopen("{name}?v={version}", "rb")'
+
+    patched, count = _ARCHIVE_FETCH_RE.subn(replacement, html)
+    if count < 1:
+        raise RuntimeError("Could not find pygbag archive fetches in index.html")
+    return f"<!-- {_ARCHIVE_CACHE_BUSTER_MARKER}: v={version} -->\n" + patched
+
+
 def hide_pygbag_infobox(html: str) -> str:
     """Wrap pygbag app loading so browser startup errors are visible and syntax-safe."""
     if _ERROR_OVERLAY_MARKER in html:
-        return disable_pygbag_ume_gate(html)
+        return cache_bust_archive_fetches(disable_pygbag_ume_gate(html))
 
     def replacement(match: re.Match[str]) -> str:
         indent = match.group("indent")
@@ -66,6 +86,9 @@ def hide_pygbag_infobox(html: str) -> str:
         source_line = match.group(0).lstrip()
         return "\n".join(
             [
+                f'{indent}platform.window.infobox.style.display = "none"',
+                f"{indent}platform.window.config.gui_divider = 1",
+                f"{indent}platform.window.window_resize()",
                 f"{indent}try:",
                 f"{inner}{source_line}",
                 f"{indent}except Exception:",
@@ -80,7 +103,7 @@ def hide_pygbag_infobox(html: str) -> str:
     patched, count = _SOURCE_LINE_RE.subn(replacement, html, count=1)
     if count != 1:
         raise RuntimeError("Could not find pygbag shell.source loader line in index.html")
-    return disable_pygbag_ume_gate(patched)
+    return cache_bust_archive_fetches(disable_pygbag_ume_gate(patched))
 
 
 def patch_index(path: str | Path) -> None:

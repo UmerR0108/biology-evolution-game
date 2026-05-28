@@ -56,11 +56,9 @@ async def browser_main() -> None:
 
 if __name__ == "__main__":
     if sys.platform == "emscripten":
-        # pygbag's loader awaits shell.source(main.py). If this file blocks inside
-        # asyncio.run(...), the generated loader never reaches the code that hides
-        # its gray startup overlay and resizes the canvas. Schedule the long-lived
-        # game coroutine instead so shell.source can return while browser_main()
-        # still surfaces task errors in the infobox.
-        asyncio.create_task(browser_main())
+        # Keep the browser entrypoint in pygbag's normal asyncio.run(...) shape.
+        # The loader patch hides the gray infobox before awaiting this long-lived
+        # coroutine, so the game can draw while startup exceptions still surface.
+        asyncio.run(browser_main())
     else:
         asyncio.run(main())

@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 from patch_pygbag_loader import (
+    cache_bust_archive_fetches,
     disable_pygbag_ume_gate,
     embedded_python_blocks,
     hide_pygbag_infobox,
@@ -37,21 +38,49 @@ def test_railway_server_disables_browser_cache_for_stale_gray_screens():
     assert "serve.py" in dockerfile
 
 
-def test_pygbag_loader_patch_preserves_embedded_python_syntax():
+def test_pygbag_loader_patch_hides_gray_infobox_before_long_lived_game_loop():
     html = """
 <html><body>
 <script type="text/python">
 async def main():
             await shell.source(main, callback=ui_callback)
+            async with platform.fopen("biology-evolution-game.apk", "rb") as archive:
+                pass
 </script>
 </body></html>
 """
 
     patched = hide_pygbag_infobox(html)
     assert "traceback.format_exc()" in patched
+    assert re.search(r"^            platform\.window\.infobox\.style\.display = \"none\"$", patched, re.MULTILINE)
+    assert re.search(r"^            platform\.window\.window_resize\(\)$", patched, re.MULTILINE)
     assert re.search(r"^            try:$", patched, re.MULTILINE)
     assert re.search(r"^                await shell\.source\(main, callback=ui_callback\)$", patched, re.MULTILINE)
     assert re.search(r"^                platform\.window\.infobox\.innerText = traceback\.format_exc\(\)$", patched, re.MULTILINE)
+    assert "Hermes patch: cache-bust pygbag archive" in patched
+    for block in embedded_python_blocks(patched):
+        compile(block, "patched-index.html", "exec")
+
+
+def test_pygbag_loader_patch_cache_busts_archive_fetches_for_stale_github_pages_assets(monkeypatch):
+    monkeypatch.setenv("GITHUB_SHA", "abcdef1234567890")
+    html = """
+<html><body>
+<script type="text/python">
+async def load_archives():
+    async with platform.fopen("biology-evolution-game.apk", "rb") as archive:
+        pass
+    async with platform.fopen("biology-evolution-game.tar.gz", "rb") as archive:
+        pass
+</script>
+</body></html>
+"""
+
+    patched = cache_bust_archive_fetches(html)
+
+    assert 'platform.fopen("biology-evolution-game.apk?v=abcdef123456", "rb")' in patched
+    assert 'platform.fopen("biology-evolution-game.tar.gz?v=abcdef123456", "rb")' in patched
+    assert "Hermes patch: cache-bust pygbag archive" in patched
     for block in embedded_python_blocks(patched):
         compile(block, "patched-index.html", "exec")
 
@@ -86,16 +115,16 @@ async def custom_site():
         compile(block, "patched-index.html", "exec")
 
 
-def test_browser_entrypoint_schedules_game_so_pygbag_loader_can_hide_gray_overlay():
+def test_browser_entrypoint_uses_pygbag_asyncio_run_after_loader_hides_gray_overlay():
     main_py = (ROOT / "main.py").read_text()
 
     assert 'sys.platform == "emscripten"' in main_py
-    assert "asyncio.create_task(browser_main())" in main_py
-    assert "asyncio.run(browser_main())" not in main_py
+    assert "asyncio.run(browser_main())" in main_py
+    assert "asyncio.create_task(browser_main())" not in main_py
     assert "asyncio.run(main())" in main_py
     assert "traceback.format_exc()" in main_py
     assert "infobox.innerText = message" in main_py
-    assert "loader never reaches the code that hides" in main_py
+    assert "loader patch hides the gray infobox before awaiting" in main_py
 
 
 def test_dockerfile_uses_loader_patch_script_not_brittle_inline_replacement():
