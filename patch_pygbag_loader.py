@@ -19,7 +19,7 @@ _SOURCE_LINE_RE = re.compile(
     r"^(?P<indent>[ \t]*)await shell\.source\(main, callback=ui_callback\)$",
     re.MULTILINE,
 )
-_HIDE_INFOBOX = "platform.window.infobox.style.display = 'none'"
+_ERROR_OVERLAY_MARKER = "traceback.format_exc()"
 
 
 def embedded_python_blocks(html: str) -> list[str]:
@@ -28,14 +28,26 @@ def embedded_python_blocks(html: str) -> list[str]:
 
 
 def hide_pygbag_infobox(html: str) -> str:
-    """Hide pygbag's gray infobox before loading the app, preserving indentation."""
-    if _HIDE_INFOBOX in html:
+    """Wrap pygbag app loading so browser startup errors are visible and syntax-safe."""
+    if _ERROR_OVERLAY_MARKER in html:
         return html
 
     def replacement(match: re.Match[str]) -> str:
         indent = match.group("indent")
-        source_line = match.group(0)
-        return f"{indent}{_HIDE_INFOBOX}\n{source_line}"
+        inner = f"{indent}    "
+        source_line = match.group(0).lstrip()
+        return "\n".join(
+            [
+                f"{indent}try:",
+                f"{inner}{source_line}",
+                f"{indent}except Exception:",
+                f"{inner}import traceback",
+                f'{inner}platform.window.infobox.style.display = "block"',
+                f'{inner}platform.window.infobox.style.whiteSpace = "pre-wrap"',
+                f"{inner}platform.window.infobox.innerText = traceback.format_exc()",
+                f"{inner}raise",
+            ]
+        )
 
     patched, count = _SOURCE_LINE_RE.subn(replacement, html, count=1)
     if count != 1:

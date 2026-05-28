@@ -13,7 +13,7 @@ def test_railway_dockerfile_hides_pygbag_infobox_before_game_loop_finishes():
 
     assert "pygbag --build --ume_block 0" in dockerfile
     assert "patch_pygbag_loader.py build/web/index.html" in dockerfile
-    assert "platform.window.infobox.style.display = 'none'" in patcher
+    assert "traceback.format_exc()" in patcher
     assert "shell\\.source" in patcher
 
 
@@ -44,11 +44,20 @@ async def main():
 """
 
     patched = hide_pygbag_infobox(html)
-    assert "platform.window.infobox.style.display = 'none'" in patched
-    assert re.search(r"^            platform\.window\.infobox\.style\.display = 'none'$", patched, re.MULTILINE)
-    assert re.search(r"^            await shell\.source\(main, callback=ui_callback\)$", patched, re.MULTILINE)
+    assert "traceback.format_exc()" in patched
+    assert re.search(r"^            try:$", patched, re.MULTILINE)
+    assert re.search(r"^                await shell\.source\(main, callback=ui_callback\)$", patched, re.MULTILINE)
+    assert re.search(r"^                platform\.window\.infobox\.innerText = traceback\.format_exc\(\)$", patched, re.MULTILINE)
     for block in embedded_python_blocks(patched):
         compile(block, "patched-index.html", "exec")
+
+
+def test_browser_entrypoint_schedules_main_on_pygbag_loop_instead_of_nested_asyncio_run():
+    main_py = (ROOT / "main.py").read_text()
+
+    assert 'sys.platform == "emscripten"' in main_py
+    assert "asyncio.create_task(main())" in main_py
+    assert "asyncio.run(main())" in main_py
 
 
 def test_dockerfile_uses_loader_patch_script_not_brittle_inline_replacement():

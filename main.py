@@ -27,5 +27,10 @@ async def main() -> None:
         app.shutdown()
 
 
+# In pygbag, ``shell.source(main.py)`` already runs inside the browser event loop.
+# Scheduling the game coroutine avoids nesting ``asyncio.run`` under that loop.
 if __name__ == "__main__":
-    asyncio.run(main())
+    if sys.platform == "emscripten":
+        asyncio.create_task(main())
+    else:
+        asyncio.run(main())
