@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 _TEXT_PY_SCRIPT_RE = re.compile(
@@ -69,7 +70,12 @@ def cache_bust_archive_fetches(html: str) -> str:
     if _ARCHIVE_CACHE_BUSTER_MARKER in html:
         return html
 
-    version = os.environ.get("GITHUB_SHA", "local")[:12]
+    version = (
+        os.environ.get("GITHUB_SHA")
+        or os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+        or os.environ.get("RAILWAY_DEPLOYMENT_ID")
+        or str(int(time.time()))
+    )[:12]
 
     def replacement(match: re.Match[str]) -> str:
         name = match.group("name")
