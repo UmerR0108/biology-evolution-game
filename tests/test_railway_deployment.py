@@ -77,7 +77,8 @@ asyncio.run(custom_site())
 
 
 def test_pygbag_loader_patch_cache_busts_archive_fetches_for_stale_github_pages_assets(monkeypatch):
-    monkeypatch.setenv("GITHUB_SHA", "abcdef1234567890")
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "abcdef1234567890")
     html = """
 <html><body>
 <script type="text/python">
