@@ -56,9 +56,11 @@ async def browser_main() -> None:
 
 if __name__ == "__main__":
     if sys.platform == "emscripten":
-        # pygbag's browser asyncio module expects the app coroutine to be started
-        # through asyncio.run(); it schedules the task on the already-started
-        # browser loop rather than blocking like desktop CPython would.
-        asyncio.run(browser_main())
+        # pygbag's loader awaits shell.source(main.py). If this file blocks inside
+        # asyncio.run(...), the generated loader never reaches the code that hides
+        # its gray startup overlay and resizes the canvas. Schedule the long-lived
+        # game coroutine instead so shell.source can return while browser_main()
+        # still surfaces task errors in the infobox.
+        asyncio.create_task(browser_main())
     else:
         asyncio.run(main())

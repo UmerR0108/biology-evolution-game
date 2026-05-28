@@ -86,14 +86,16 @@ async def custom_site():
         compile(block, "patched-index.html", "exec")
 
 
-def test_browser_entrypoint_runs_game_through_pygbag_asyncio_and_surfaces_task_errors():
+def test_browser_entrypoint_schedules_game_so_pygbag_loader_can_hide_gray_overlay():
     main_py = (ROOT / "main.py").read_text()
 
     assert 'sys.platform == "emscripten"' in main_py
-    assert "asyncio.run(browser_main())" in main_py
+    assert "asyncio.create_task(browser_main())" in main_py
+    assert "asyncio.run(browser_main())" not in main_py
     assert "asyncio.run(main())" in main_py
     assert "traceback.format_exc()" in main_py
     assert "infobox.innerText = message" in main_py
+    assert "loader never reaches the code that hides" in main_py
 
 
 def test_dockerfile_uses_loader_patch_script_not_brittle_inline_replacement():
