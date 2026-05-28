@@ -2,8 +2,9 @@ import random
 
 import pygame
 
-from evogame.genetics import GUPPY_SCHEMA
+from evogame.genetics import BIRD_SCHEMA, Creature, GUPPY_SCHEMA
 from evogame.sim.controller import SimController
+from evogame.sim.habitat import CaptiveHabitat
 from evogame.sim.recorder import GenerationRecord
 from evogame.ui.journal import Journal
 
@@ -212,6 +213,31 @@ def test_journal_click_chart_gene_button_selects_gene_when_open(pygame_surface):
 
     assert journal.chart_panel.gene == "temp_tolerance"
     assert journal.chart_panel.figure.axes[0].get_title() == "temp_tolerance alleles"
+
+
+def test_journal_click_chart_gene_button_selects_gene_on_active_species_page(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    bird_habitat = CaptiveHabitat("bird", carrying_capacity=10, rng=random.Random(1))
+    bird_habitat.add_founder(Creature.random(BIRD_SCHEMA, random.Random(2)))
+    journal.open = True
+    journal.set_active_habitat(bird_habitat, label="Bird cage", page="birds")
+
+    journal.handle_event(pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN,
+        {"button": 1, "pos": journal.chart_gene_button_rects()["wing_span"].center},
+    ))
+
+    assert journal.chart_panel.gene == "wing_span"
+
+
+def test_journal_gene_tab_labels_fit_buttons(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    font = pygame.font.SysFont("arial", 14)
+
+    for index, (gene, rect) in enumerate(journal.chart_gene_button_rects().items(), start=1):
+        assert font.render(journal.chart_gene_button_label(index, gene), True, (0, 0, 0)).get_width() <= rect.width - 4
 
 
 def test_journal_click_chart_gene_button_ignored_when_closed(pygame_surface):
@@ -580,6 +606,25 @@ def test_journal_tracks_bird_notes_separately_from_bunnies(pygame_surface):
     assert journal.bird_page_cards() == [bird_note]
 
 
+def test_journal_site_and_species_notes_count_for_both_checklists(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    forest_bunny_note = "Forest Trail: bunny camouflage observed near dense cover."
+    pond_fish_note = "Pond Study Site: sampled guppies with long fins."
+
+    journal.add_field_note(forest_bunny_note)
+    journal.add_field_note(pond_fish_note)
+
+    groups = journal.field_notes_by_category()
+    assert forest_bunny_note in groups["forest"]
+    assert forest_bunny_note in groups["bunnies"]
+    assert pond_fish_note in groups["pond"]
+    assert pond_fish_note in groups["fish"]
+    assert ("Forest documented", True, "1 notes") in journal.observation_checklist_items()
+    assert ("Bunny observed", True, "1 sightings") in journal.observation_checklist_items()
+    assert ("Guppies sampled", True, "1 notes") in journal.observation_checklist_items()
+
+
 def test_journal_observation_checklist_includes_birds(pygame_surface):
     sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
     journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
@@ -588,6 +633,26 @@ def test_journal_observation_checklist_includes_birds(pygame_surface):
     checklist = journal.observation_checklist_items()
 
     assert ("Bird observed", True, "1 sightings") in checklist
+
+
+def test_journal_tabs_stay_inside_panel_and_away_from_close_button(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+
+    for rect in journal.page_tab_rects().values():
+        assert journal.panel_rect.contains(rect)
+        assert not rect.colliderect(journal.close_button_rect)
+
+
+def test_journal_observation_section_lines_wrap_inside_right_page(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    journal.add_field_note("Forest Trail: bunny camouflage observed near dense cover.")
+    font = pygame.font.SysFont("arial", 14)
+
+    max_width = journal.observation_section_text_max_width()
+    for line in journal.observation_section_lines_for_width(font):
+        assert font.render(line, True, (0, 0, 0)).get_width() <= max_width
 
 
 

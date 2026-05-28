@@ -130,11 +130,16 @@ class App:
             duplicate="Pond sample already in field journal.",
         )
 
+    def _open_general_journal(self, *, page: str = "fish") -> None:
+        self.journal.clear_active_habitat()
+        self.journal.current_page = page
+        self.journal.open = True
+
     def _open_research_from_habitat(self, habitat_id: str) -> None:
         self.research_unlocked = True
         self.journal.open = True
         if habitat_id == "fish":
-            self.journal.current_page = "fish"
+            self.journal.set_active_habitat(self.home_fish_habitat, label="Home pond", page="fish")
             self._status_message = "Home pond research opened: press Start to run generations."
         elif habitat_id == "bird":
             self.journal.set_active_habitat(self.home_bird_habitat, label="Bird cage", page="birds")
@@ -288,13 +293,16 @@ class App:
                     self._cycle_to_next_area()
                     continue
                 if event.key == pygame.K_j:
-                    self.journal.toggle()
+                    if self.journal.open:
+                        self.journal.open = False
+                    else:
+                        self._open_general_journal()
                     continue
                 if event.key in (pygame.K_e, pygame.K_RETURN):
                     near_cottage = self.world_panel.cottage_in_range(self.player)
                     near_pond = self.world_panel.pond_in_range(self.player)
                     if near_cottage:
-                        self.journal.open = True
+                        self._open_general_journal(page="observations")
                         self._record_home_base_note()
                         self.world_panel.pond_view.refresh(self.sim.population.creatures)
                         continue
@@ -380,7 +388,7 @@ class App:
                     self._open_research_from_habitat(clicked_habitat)
                     continue
                 if clicked_pond or clicked_cottage:
-                    self.journal.open = True
+                    self._open_general_journal(page="observations" if clicked_cottage else "fish")
                     if clicked_cottage:
                         self._record_home_base_note()
                     if clicked_pond:
@@ -442,19 +450,23 @@ class App:
                     self.world_panel.pond_view.refresh(self.sim.population.creatures)
                 self._announce_area_entry()
                 self._record_area_survey_if_new(next_area, was_new)
-        if self.research_unlocked and self.journal.open and not self.journal.paused and not self.sim.extinct:
+        if (
+            self.research_unlocked
+            and self.journal.open
+            and not self.journal.paused
+            and (self.journal.active_habitat is not None or not self.sim.extinct)
+        ):
             interval_ms = 1000.0 / self.journal.gens_per_second
             self._gen_timer_ms += dt_ms
             while self._gen_timer_ms >= interval_ms:
                 self._gen_timer_ms -= interval_ms
-                if self.journal.active_habitat is None:
+                if self.journal.active_habitat is not None:
+                    self.journal.active_habitat.tick()
+                else:
                     self.sim.tick()
-                self.home_fish_habitat.tick()
-                self.home_bird_habitat.tick()
-                self.home_bunny_habitat.tick()
+                    self.world_panel.pond_view.refresh(self.sim.population.creatures)
                 self.journal.on_sim_tick()
-                self.world_panel.pond_view.refresh(self.sim.population.creatures)
-                if self.sim.extinct:
+                if self.journal.active_habitat is None and self.sim.extinct:
                     break
         # Drift fish every frame (even when paused or journal open).
         self.world_panel.pond_view.update(dt_ms)

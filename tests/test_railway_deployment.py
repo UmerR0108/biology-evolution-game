@@ -1,0 +1,58 @@
+import re
+from pathlib import Path
+
+from patch_pygbag_loader import hide_pygbag_infobox, embedded_python_blocks
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_railway_dockerfile_hides_pygbag_infobox_before_game_loop_finishes():
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    patcher = (ROOT / "patch_pygbag_loader.py").read_text()
+
+    assert "pygbag --build --ume_block 0" in dockerfile
+    assert "patch_pygbag_loader.py build/web/index.html" in dockerfile
+    assert "platform.window.infobox.style.display = 'none'" in patcher
+    assert "shell\\.source" in patcher
+
+
+def test_railway_uses_dockerfile_builder_instead_of_railpack():
+    railway_json = (ROOT / "railway.json").read_text()
+
+    assert '"builder": "DOCKERFILE"' in railway_json
+    assert "RAILPACK" not in railway_json
+
+
+def test_railway_server_disables_browser_cache_for_stale_gray_screens():
+    serve_py = (ROOT / "serve.py").read_text()
+    dockerfile = (ROOT / "Dockerfile").read_text()
+
+    assert "Cache-Control" in serve_py
+    assert "no-store" in serve_py
+    assert "serve.py" in dockerfile
+
+
+def test_pygbag_loader_patch_preserves_embedded_python_syntax():
+    html = """
+<html><body>
+<script type="text/python">
+async def main():
+            await shell.source(main, callback=ui_callback)
+</script>
+</body></html>
+"""
+
+    patched = hide_pygbag_infobox(html)
+    assert "platform.window.infobox.style.display = 'none'" in patched
+    assert re.search(r"^            platform\.window\.infobox\.style\.display = 'none'$", patched, re.MULTILINE)
+    assert re.search(r"^            await shell\.source\(main, callback=ui_callback\)$", patched, re.MULTILINE)
+    for block in embedded_python_blocks(patched):
+        compile(block, "patched-index.html", "exec")
+
+
+def test_dockerfile_uses_loader_patch_script_not_brittle_inline_replacement():
+    dockerfile = (ROOT / "Dockerfile").read_text()
+
+    assert "patch_pygbag_loader.py" in dockerfile
+    assert "s.replace(needle" not in dockerfile

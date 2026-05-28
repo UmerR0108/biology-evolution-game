@@ -1,5 +1,8 @@
+import random
+
 import pygame
 
+from evogame.genetics import BIRD_SCHEMA, BUNNY_SCHEMA, Creature, GUPPY_SCHEMA
 from evogame.ui.app import App
 
 
@@ -162,6 +165,101 @@ def test_app_clicking_bird_cage_opens_bird_page_and_unlocks_research():
     assert app.journal.current_page == "birds"
     assert app.research_unlocked is True
     app.shutdown()
+
+
+def test_app_clicking_fish_habitat_after_bird_cage_opens_home_pond_research():
+    app = App(seed=0, show_tutorial=False)
+
+    app._open_research_from_habitat("bird")
+    app._open_research_from_habitat("fish")
+
+    assert app.journal.open is True
+    assert app.journal.current_page == "fish"
+    assert app.journal.active_habitat is app.home_fish_habitat
+    assert app.journal.predator_selection_hint_text() == "Preys on fish with small fins"
+    assert set(app.journal.chart_genes) == {"color", "fin_length", "temp_tolerance", "body_size"}
+    assert "Need 2 founders" in app.journal.active_habitat_summary_cards()
+    app.shutdown()
+
+
+def test_app_switching_habitat_research_syncs_predator_toggle_state():
+    app = App(seed=0, show_tutorial=False)
+    app.home_bird_habitat.predator_on = True
+    app.home_bunny_habitat.predator_on = False
+
+    app._open_research_from_habitat("bird")
+    assert app.journal.predator_toggle.state is True
+
+    app._open_research_from_habitat("bunny")
+    assert app.journal.predator_toggle.state is False
+    app.shutdown()
+
+
+def test_app_home_pond_predator_toggle_targets_fish_fin_length():
+    app = App(seed=0, show_tutorial=False)
+    app._open_research_from_habitat("fish")
+
+    app.journal.open = True
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_p}))
+    app.step_one_frame(0)
+
+    assert app.home_fish_habitat.predator_on is True
+    assert app.home_fish_habitat.predator_gene == "fin_length"
+    assert app.home_fish_habitat.predator_preferred_label == "small"
+    app.shutdown()
+
+
+def test_app_j_key_reopens_general_journal_without_stale_habitat_context():
+    app = App(seed=0, show_tutorial=False)
+    app._open_research_from_habitat("fish")
+    assert app.journal.active_habitat is app.home_fish_habitat
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_j}))
+    app.step_one_frame(0)
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_j}))
+    app.step_one_frame(0)
+
+    assert app.journal.open is True
+    assert app.journal.active_habitat is None
+    assert app.journal.current_page == "fish"
+    app.shutdown()
+
+
+def test_app_research_tick_advances_only_selected_habitat():
+    app = App(seed=0, show_tutorial=False)
+    rng = random.Random(3)
+    for schema, habitat in [
+        (GUPPY_SCHEMA, app.home_fish_habitat),
+        (BIRD_SCHEMA, app.home_bird_habitat),
+        (BUNNY_SCHEMA, app.home_bunny_habitat),
+    ]:
+        habitat.add_founder(Creature.random(schema, rng))
+        habitat.add_founder(Creature.random(schema, rng))
+    app._open_research_from_habitat("bird")
+    app.journal.paused = False
+
+    app.step_one_frame(1100)
+
+    assert app.home_bird_habitat.generation >= 1
+    assert app.home_fish_habitat.generation == 0
+    assert app.home_bunny_habitat.generation == 0
+    app.shutdown()
+
+
+def test_app_home_habitat_research_keeps_running_when_wild_fish_extinct():
+    app = App(seed=0, show_tutorial=False)
+    rng = random.Random(4)
+    app.home_bird_habitat.add_founder(Creature.random(BIRD_SCHEMA, rng))
+    app.home_bird_habitat.add_founder(Creature.random(BIRD_SCHEMA, rng))
+    app.sim.extinct = True
+    app._open_research_from_habitat("bird")
+    app.journal.paused = False
+
+    app.step_one_frame(1100)
+
+    assert app.home_bird_habitat.generation >= 1
+    app.shutdown()
+
 
 def test_app_does_not_advance_until_research_started():
     app = App(seed=0, show_tutorial=False)
