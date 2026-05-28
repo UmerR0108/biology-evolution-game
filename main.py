@@ -15,6 +15,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from evogame.ui.app import App
 
 
+def _show_browser_exception(message: str) -> None:
+    """Surface pygbag/browser startup failures on the page instead of a gray canvas."""
+    if sys.platform != "emscripten":
+        return
+    try:
+        import platform
+
+        infobox = platform.window.infobox
+        infobox.style.display = "block"
+        infobox.style.whiteSpace = "pre-wrap"
+        infobox.innerText = message
+    except Exception:
+        # If the browser host objects are not ready, keep the original exception.
+        return
+
+
 async def main() -> None:
     app = App()
     try:
@@ -27,10 +43,22 @@ async def main() -> None:
         app.shutdown()
 
 
-# In pygbag, ``shell.source(main.py)`` already runs inside the browser event loop.
-# Scheduling the game coroutine avoids nesting ``asyncio.run`` under that loop.
+async def browser_main() -> None:
+    """Run the game under pygbag and keep async task exceptions visible."""
+    try:
+        await main()
+    except Exception:
+        import traceback
+
+        _show_browser_exception(traceback.format_exc())
+        raise
+
+
 if __name__ == "__main__":
     if sys.platform == "emscripten":
-        asyncio.create_task(main())
+        # pygbag's browser asyncio module expects the app coroutine to be started
+        # through asyncio.run(); it schedules the task on the already-started
+        # browser loop rather than blocking like desktop CPython would.
+        asyncio.run(browser_main())
     else:
         asyncio.run(main())

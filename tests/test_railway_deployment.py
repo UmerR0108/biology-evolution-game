@@ -52,12 +52,14 @@ async def main():
         compile(block, "patched-index.html", "exec")
 
 
-def test_browser_entrypoint_schedules_main_on_pygbag_loop_instead_of_nested_asyncio_run():
+def test_browser_entrypoint_runs_game_through_pygbag_asyncio_and_surfaces_task_errors():
     main_py = (ROOT / "main.py").read_text()
 
     assert 'sys.platform == "emscripten"' in main_py
-    assert "asyncio.create_task(main())" in main_py
+    assert "asyncio.run(browser_main())" in main_py
     assert "asyncio.run(main())" in main_py
+    assert "traceback.format_exc()" in main_py
+    assert "infobox.innerText = message" in main_py
 
 
 def test_dockerfile_uses_loader_patch_script_not_brittle_inline_replacement():
