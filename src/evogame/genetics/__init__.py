@@ -11,6 +11,7 @@ from evogame.genetics.schema import SpeciesSchema
 from evogame.genetics.creature import Creature, MutationEvent
 from evogame.genetics.species.guppy import GUPPY_SCHEMA
 from evogame.genetics.species.bunny import BUNNY_SCHEMA
+from evogame.genetics.species.bird import BIRD_SCHEMA
 
 __all__ = [
     "Allele",
@@ -26,4 +27,5 @@ __all__ = [
     "MutationEvent",
     "GUPPY_SCHEMA",
     "BUNNY_SCHEMA",
+    "BIRD_SCHEMA",
 ]

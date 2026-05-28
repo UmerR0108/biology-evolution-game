@@ -1,5 +1,6 @@
 import pygame
 
+from evogame.genetics import BIRD_SCHEMA, BUNNY_SCHEMA, GUPPY_SCHEMA
 from evogame.sim.controller import SimController
 from evogame.ui.chart_panel import ChartPanel
 from evogame.ui.widgets import Button, Slider, Toggle
@@ -13,8 +14,8 @@ _GENE_BUTTON_BORDER = (185, 205, 190)
 _PAPER = (238, 224, 183)
 _INK = (54, 42, 31)
 _PAGE_SHADOW = (141, 111, 73)
-_JOURNAL_PAGES = ("fish", "bunnies", "observations")
-_PAGE_LABELS = {"fish": "Fish Frequencies", "bunnies": "Bunnies", "observations": "Observations"}
+_JOURNAL_PAGES = ("fish", "birds", "bunnies", "observations")
+_PAGE_LABELS = {"fish": "Fish Frequencies", "birds": "Birds", "bunnies": "Bunnies", "observations": "Observations"}
 
 
 def _wrap_text_to_width(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
@@ -45,6 +46,8 @@ class Journal:
         self.paused = True
         self.population_refresh_requested = False
         self.observation_scroll = 0
+        self.active_habitat = None
+        self.active_habitat_label = "Fish"
         self.chart_genes = tuple(gene.name for gene in sim.schema.genes)
         self.field_notes: list[str] = []
         self.current_page = "fish"
@@ -88,7 +91,7 @@ class Journal:
             self._toggle_pause,
         )
         self._sync_pause_button_label()
-        self.chart_panel.update(self.sim.log)
+        self.chart_panel.update(self.active_research_log())
 
     @property
     def gens_per_second(self) -> float:
@@ -97,8 +100,47 @@ class Journal:
     def speed_label_text(self) -> str:
         return f"Speed: {self.gens_per_second:.1f} generations/sec"
 
+    def predator_selection_hint_text(self) -> str:
+        if self.active_habitat is not None:
+            if self.active_habitat.species_name == "bunny":
+                return "Predator favors slow bunnies"
+            if self.active_habitat.species_name == "bird":
+                return "Predator favors broad-beak birds"
+        return "Preys on fish with small fins"
+
+    def active_research_log(self):
+        return self.active_habitat.log if self.active_habitat is not None else self.sim.log
+
+    def set_active_habitat(self, habitat, *, label: str, page: str) -> None:
+        self.active_habitat = habitat
+        self.active_habitat_label = label
+        schema = habitat.founders[0].schema if habitat.founders else None
+        if schema is None and habitat.population is not None and habitat.population.creatures:
+            schema = habitat.population.creatures[0].schema
+        if schema is None:
+            schema = {
+                "guppy": GUPPY_SCHEMA,
+                "bunny": BUNNY_SCHEMA,
+                "bird": BIRD_SCHEMA,
+            }.get(habitat.species_name)
+        if schema is not None:
+            self.chart_genes = tuple(gene.name for gene in schema.genes)
+            self.chart_panel.gene = self.chart_genes[0]
+        self.current_page = page
+        self.chart_panel.update(self.active_research_log())
+
+    def clear_active_habitat(self) -> None:
+        self.active_habitat = None
+        self.active_habitat_label = "Fish"
+        self.chart_genes = tuple(gene.name for gene in self.sim.schema.genes)
+        self.chart_panel.gene = self.chart_genes[0]
+        self.chart_panel.update(self.active_research_log())
+
     def controls_hint_text(self) -> str:
         return "Tab/←/→ pages • Space start/stop • N step • G/1-4 chart gene • +/- or wheel speed • PgUp/PgDn notes • Home/End jump • P predator • R reset • J/ESC close"
+
+    def controls_hint_lines_for_width(self, font: pygame.font.Font) -> list[str]:
+        return _wrap_text_to_width(self.controls_hint_text(), font, self.panel_rect.width - 32)
 
     def toggle(self) -> None:
         self.open = not self.open
@@ -110,12 +152,15 @@ class Journal:
             self.pause_button.label = "Start" if self.paused else "Stop"
 
     def _reset_research_run(self, *, paused: bool) -> None:
-        self.sim.reset()
+        if self.active_habitat is not None:
+            self.active_habitat.reset()
+        else:
+            self.sim.reset()
         self.predator_toggle.state = False
         self.speed_slider.value = 1.0
         self.paused = paused
         self._sync_pause_button_label()
-        self.chart_panel.update(self.sim.log)
+        self.chart_panel.update(self.active_research_log())
         self.population_refresh_requested = True
 
     def _toggle_pause(self) -> None:
@@ -128,15 +173,18 @@ class Journal:
     def _step_one_generation(self) -> None:
         if not self.paused or self.sim.extinct:
             return
-        self.sim.tick()
+        if self.active_habitat is not None:
+            self.active_habitat.tick()
+        else:
+            self.sim.tick()
+            self.population_refresh_requested = True
         self.on_sim_tick()
-        self.population_refresh_requested = True
 
     def _select_chart_gene(self, index: int) -> None:
         if index < 0 or index >= len(self.chart_genes):
             return
         self.chart_panel.gene = self.chart_genes[index]
-        self.chart_panel.update(self.sim.log)
+        self.chart_panel.update(self.active_research_log())
 
     def book_rect(self) -> pygame.Rect:
         return self.panel_rect.inflate(-28, -46).move(0, 12)
@@ -245,7 +293,12 @@ class Journal:
                 return
             if event.key == pygame.K_p:
                 self.predator_toggle.state = not self.predator_toggle.state
-                self.sim.set_predator(self.predator_toggle.state)
+                if self.active_habitat is not None:
+                    gene = "speed" if self.active_habitat.species_name == "bunny" else "beak_shape"
+                    preferred = "slow" if self.active_habitat.species_name == "bunny" else "broad"
+                    self.active_habitat.set_predator(self.predator_toggle.state, gene=gene, preferred_label=preferred)
+                else:
+                    self.sim.set_predator(self.predator_toggle.state)
                 return
             if event.key == pygame.K_g:
                 self._cycle_chart_gene()
@@ -284,12 +337,17 @@ class Journal:
         prior = self.predator_toggle.state
         self.predator_toggle.handle_event(event)
         if self.predator_toggle.state != prior:
-            self.sim.set_predator(self.predator_toggle.state)
+            if self.active_habitat is not None:
+                gene = "speed" if self.active_habitat.species_name == "bunny" else "beak_shape"
+                preferred = "slow" if self.active_habitat.species_name == "bunny" else "broad"
+                self.active_habitat.set_predator(self.predator_toggle.state, gene=gene, preferred_label=preferred)
+            else:
+                self.sim.set_predator(self.predator_toggle.state)
         self.speed_slider.handle_event(event)
         self.pause_button.handle_event(event)
 
     def on_sim_tick(self) -> None:
-        self.chart_panel.update(self.sim.log)
+        self.chart_panel.update(self.active_research_log())
 
     def add_field_note(self, note: str) -> bool:
         note = note.strip()
@@ -303,10 +361,12 @@ class Journal:
         return note[:max_chars - 1].rstrip() + "…"
 
     def field_notes_by_category(self) -> dict[str, list[str]]:
-        groups = {"home": [], "pond": [], "forest": [], "bunnies": [], "other": []}
+        groups = {"home": [], "pond": [], "forest": [], "birds": [], "bunnies": [], "other": []}
         for note in self.field_notes:
             lower = note.lower()
-            if "bunny" in lower:
+            if "bird" in lower:
+                groups["birds"].append(note)
+            elif "bunny" in lower:
                 groups["bunnies"].append(note)
             elif note.startswith("Home Base"):
                 groups["home"].append(note)
@@ -320,6 +380,9 @@ class Journal:
 
     def bunny_field_notes(self) -> list[str]:
         return self.field_notes_by_category()["bunnies"]
+
+    def bird_field_notes(self) -> list[str]:
+        return self.field_notes_by_category()["birds"]
 
     def fish_summary_cards(self) -> list[str]:
         if not self.sim.log.records:
@@ -338,10 +401,22 @@ class Journal:
             return "No bunny observations yet — explore the forest and press E near bunnies."
         return f"Bunny observations: {count}"
 
+    def bird_page_summary_text(self) -> str:
+        count = len(self.bird_field_notes())
+        if count == 0:
+            return "No bird observations yet — explore the forest and press E near birds."
+        return f"Bird observations: {count}"
+
     def bunny_page_cards(self) -> list[str]:
         notes = list(reversed(self.bunny_field_notes()))[:5]
         if not notes:
             return ["Look for bunnies near cover and pond banks."]
+        return [self._shorten_note(note, 68) for note in notes]
+
+    def bird_page_cards(self) -> list[str]:
+        notes = list(reversed(self.bird_field_notes()))[:5]
+        if not notes:
+            return ["Look for birds in the forest canopy and clearings."]
         return [self._shorten_note(note, 68) for note in notes]
 
     def observation_checklist_items(self) -> list[tuple[str, bool, str]]:
@@ -350,6 +425,7 @@ class Journal:
             ("Home documented", bool(groups["home"]), f"{len(groups['home'])} notes"),
             ("Pond documented", bool(groups["pond"]), f"{len(groups['pond'])} notes"),
             ("Forest documented", bool(groups["forest"]), f"{len(groups['forest'])} notes"),
+            ("Bird observed", bool(groups["birds"]), f"{len(groups['birds'])} sightings"),
             ("Bunny observed", bool(groups["bunnies"]), f"{len(groups['bunnies'])} sightings"),
         ]
 
@@ -411,7 +487,7 @@ class Journal:
             lines.append(heading)
             lines.extend(reversed(self.field_notes[-3:]))
         else:
-            lines.append("Field notes: none yet — press E near ponds, wildlife, or home base.")
+            lines.append("Field notes: none yet — press E near ponds, birds, bunnies, or home base.")
             lines.append(self.field_note_goal_text())
 
     def color_phenotype_summary_text(self) -> str | None:
@@ -610,6 +686,40 @@ class Journal:
         self.chart_panel.draw(surface)
         self._draw_text_lines(surface, font, ["At a glance", *self.fish_summary_cards()], (right.left, right.top), _INK, 24)
         self.predator_toggle.draw(surface, font)
+        hint = font.render(self.predator_selection_hint_text(), True, _INK)
+        surface.blit(hint, (self.predator_toggle.rect.right + 10, self.predator_toggle.rect.top + 4))
+        speed_label = font.render(self.speed_label_text(), True, _INK)
+        surface.blit(speed_label, (self.speed_slider.rect.left, self.speed_slider.rect.top - 20))
+        self.speed_slider.draw(surface, font)
+        self._sync_pause_button_label()
+        self.pause_button.draw(surface, font)
+
+    def active_habitat_summary_cards(self) -> list[str]:
+        habitat = self.active_habitat
+        if habitat is None:
+            return []
+        count = len(habitat.population.creatures) if habitat.population is not None else len(habitat.founders)
+        cards = [
+            f"{self.active_habitat_label} generation {habitat.generation}",
+            f"Population {count}/{habitat.carrying_capacity}",
+            f"Predator: {'On' if habitat.predator_on else 'Off'}",
+        ]
+        for gene in self.chart_genes[:2]:
+            counts = habitat.phenotype_counts(gene)
+            if counts:
+                top, n = max(counts.items(), key=lambda item: (item[1], item[0]))
+                cards.append(f"Top {gene.replace('_', ' ')}: {top} ({n})")
+        return [self._shorten_note(card, 58) for card in cards]
+
+    def _draw_active_habitat_research(self, surface: pygame.Surface, font: pygame.font.Font, title: str) -> None:
+        left, right = self.page_content_rects()
+        self._draw_text_lines(surface, font, [title, "Traits evolving"], (left.left, left.top), _INK, 24)
+        self._draw_gene_tabs(surface, font)
+        self.chart_panel.draw(surface)
+        self._draw_text_lines(surface, font, ["At a glance", *self.active_habitat_summary_cards()], (right.left, right.top), _INK, 24)
+        self.predator_toggle.draw(surface, font)
+        hint = font.render(self.predator_selection_hint_text(), True, _INK)
+        surface.blit(hint, (self.predator_toggle.rect.right + 10, self.predator_toggle.rect.top + 4))
         speed_label = font.render(self.speed_label_text(), True, _INK)
         surface.blit(speed_label, (self.speed_slider.rect.left, self.speed_slider.rect.top - 20))
         self.speed_slider.draw(surface, font)
@@ -617,12 +727,30 @@ class Journal:
         self.pause_button.draw(surface, font)
 
     def _draw_bunnies_page(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        if self.active_habitat is not None and self.active_habitat.species_name == "bunny":
+            self._draw_active_habitat_research(surface, font, "Bunny Pen Research")
+            return
         left, right = self.page_content_rects()
         self._draw_text_lines(surface, font, ["Bunnies", self.bunny_page_summary_text(), "", "Captured bunnies will later seed the home pen."], (left.left, left.top), _INK, 24)
         pygame.draw.ellipse(surface, (180, 135, 92), pygame.Rect(left.left + 40, left.top + 130, 82, 46))
         pygame.draw.ellipse(surface, (180, 135, 92), pygame.Rect(left.left + 52, left.top + 92, 18, 54))
         pygame.draw.ellipse(surface, (180, 135, 92), pygame.Rect(left.left + 86, left.top + 92, 18, 54))
         self._draw_text_lines(surface, font, ["Latest sightings", *self.bunny_page_cards()], (right.left, right.top), _INK, 24)
+
+    def _draw_birds_page(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
+        if self.active_habitat is not None and self.active_habitat.species_name == "bird":
+            self._draw_active_habitat_research(surface, font, "Bird Cage Research")
+            return
+        left, right = self.page_content_rects()
+        self._draw_text_lines(surface, font, ["Birds", self.bird_page_summary_text(), "", "Captured birds seed the home cage."], (left.left, left.top), _INK, 24)
+        wing = pygame.Rect(left.left + 28, left.top + 112, 76, 34)
+        body = pygame.Rect(left.left + 58, left.top + 122, 74, 38)
+        pygame.draw.ellipse(surface, (213, 116, 66), wing)
+        pygame.draw.ellipse(surface, (228, 145, 72), body)
+        pygame.draw.circle(surface, (228, 145, 72), (body.right - 8, body.top + 8), 17)
+        pygame.draw.polygon(surface, (77, 52, 31), [(body.right + 6, body.top + 8), (body.right + 30, body.top + 2), (body.right + 16, body.top + 18)])
+        pygame.draw.circle(surface, (38, 32, 28), (body.right - 2, body.top + 4), 3)
+        self._draw_text_lines(surface, font, ["Latest sightings", *self.bird_page_cards()], (right.left, right.top), _INK, 24)
 
     def _draw_observations_page(self, surface: pygame.Surface, font: pygame.font.Font) -> None:
         left, right = self.page_content_rects()
@@ -648,9 +776,17 @@ class Journal:
         self._draw_page_tabs(surface, font)
         if self.current_page == "fish":
             self._draw_fish_page(surface, font)
+        elif self.current_page == "birds":
+            self._draw_birds_page(surface, font)
         elif self.current_page == "bunnies":
             self._draw_bunnies_page(surface, font)
         else:
             self._draw_observations_page(surface, font)
-        hint = font.render(self.controls_hint_text(), True, _FG)
-        surface.blit(hint, (self.panel_rect.left + 16, self.panel_rect.bottom - 24))
+        hint_lines = self.controls_hint_lines_for_width(font)
+        hint_y = self.panel_rect.bottom - 18 - (len(hint_lines) - 1) * 14
+        hint_bg = pygame.Rect(self.panel_rect.left + 10, hint_y - 4, self.panel_rect.width - 20, len(hint_lines) * 14 + 8)
+        pygame.draw.rect(surface, (28, 28, 38), hint_bg, border_radius=5)
+        pygame.draw.rect(surface, _FG, hint_bg, 1, border_radius=5)
+        for index, line in enumerate(hint_lines):
+            hint = font.render(line, True, _FG)
+            surface.blit(hint, (self.panel_rect.left + 16, hint_y + index * 14))

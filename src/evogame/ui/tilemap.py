@@ -173,11 +173,13 @@ def build_forest_scene() -> Scene:
     """
     cols, rows = 30, 18
     grid = _base_grid(cols, rows)
-    _set_pond(grid, 10, 5, [
-        ".#####.",
-        "#######",
-        "#######",
-        ".#####.",
+    _set_pond(grid, 8, 4, [
+        "..#######..",
+        ".#########.",
+        "###########",
+        "###########",
+        ".#########.",
+        "..#######..",
     ])
     _set_path(grid, [(c, 13) for c in range(0, 10)])
 
@@ -187,15 +189,15 @@ def build_forest_scene() -> Scene:
         SceneObject("tree_10", col=23, row=2),
         SceneObject("tree_12", col=25, row=10),
         SceneObject("tree_4", col=5, row=14),
-        SceneObject("bush", col=9, row=5),
-        SceneObject("yellow_bush", col=16, row=5),
-        SceneObject("bush", col=9, row=8),
-        SceneObject("bush", col=17, row=7),
-        SceneObject("small_rock", col=13, row=4),
-        SceneObject("small_rock", col=16, row=9),
-        SceneObject("rock", col=9, row=9),
-        SceneObject("flower_yellow", col=18, row=4),
-        SceneObject("flower_red", col=12, row=10),
+        SceneObject("bush", col=6, row=5),
+        SceneObject("yellow_bush", col=20, row=5),
+        SceneObject("bush", col=6, row=9),
+        SceneObject("bush", col=21, row=8),
+        SceneObject("small_rock", col=7, row=4),
+        SceneObject("small_rock", col=20, row=10),
+        SceneObject("rock", col=6, row=10),
+        SceneObject("flower_yellow", col=21, row=4),
+        SceneObject("flower_red", col=12, row=11),
         SceneObject("log", col=20, row=12),
     ]
     return Scene(

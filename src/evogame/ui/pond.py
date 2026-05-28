@@ -76,7 +76,7 @@ class VisibleFish:
         color = ph["color"].category
         # body_size phenotype is numeric (0..6 for guppy 3-locus polygenic).
         size_value = float(ph["body_size"].value)
-        scale = 1.0 + (size_value - 3.0) * 0.06  # ~0.82..1.18 range
+        scale = 1.45 + (size_value - 3.0) * 0.09  # larger so phenotype changes are readable
         return cls(
             color=color,
             scale=scale,
@@ -111,6 +111,15 @@ class PondView:
             for c in sampled
         ]
 
+    def remove_one_visible_fish(self) -> None:
+        """Remove one currently visible fish after a successful catch.
+
+        Entering the pond refreshes visible fish from the simulation population,
+        so this only affects the current visit and can reset on re-entry.
+        """
+        if self.fish:
+            self.fish.pop(0)
+
     def update(self, dt_ms: float) -> None:
         margin = 6
         for f in self.fish:
@@ -139,7 +148,7 @@ class PondView:
             ripple_rect.center = (int(ox + f.pos[0]), int(oy + f.pos[1]))
             pygame.draw.ellipse(surface, (179, 226, 239), ripple_rect, 1)
             sprite = tint_fish(f.color)
-            water_scale = f.scale * 0.72
+            water_scale = f.scale * 1.15
             w, h = sprite.get_size()
             sprite = pygame.transform.scale(
                 sprite,

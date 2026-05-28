@@ -20,6 +20,9 @@ env/
 htmlcov/
 .tox/
 
+# Generated local verification artifacts
+artifacts/
+
 # IDE
 .vscode/
 .idea/

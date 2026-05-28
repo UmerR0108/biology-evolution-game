@@ -4,7 +4,7 @@ from evogame.ui.app import App
 
 
 def test_app_initializes_without_error():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     assert app.sim.generation == 0
     assert app.running is True
     assert app.world_panel.area_id == "home"
@@ -12,15 +12,167 @@ def test_app_initializes_without_error():
     app.shutdown()
 
 
+def test_app_shows_teacher_friendly_tutorial_at_startup():
+    app = App(seed=0, show_tutorial=True)
+
+    assert app.tutorial_open is True
+    tutorial_text = " ".join(app.tutorial_lines).lower()
+    assert "field researcher" in tutorial_text
+    assert "move" in tutorial_text
+    assert "switch" in tutorial_text
+    assert "e/enter" in tutorial_text
+    assert "journal" in tutorial_text and "j" in tutorial_text
+    assert "graphs" in tutorial_text
+    assert "catch" in tutorial_text or "capture" in tutorial_text
+    assert "fishing" in tutorial_text
+    assert "habitats" in tutorial_text
+    assert "crops" in tutorial_text
+    assert "predators" in tutorial_text
+    assert "allele frequency" in tutorial_text
+    assert "evolution" in tutorial_text
+    app.shutdown()
+
+
+def test_app_tutorial_can_be_dismissed_and_reopened_with_help_key():
+    app = App(seed=0, show_tutorial=True)
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_SPACE}))
+    app.step_one_frame(0)
+    assert app.tutorial_open is False
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_SLASH, "unicode": "?"}))
+    app.step_one_frame(0)
+    assert app.tutorial_open is True
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_ESCAPE}))
+    app.step_one_frame(0)
+    assert app.tutorial_open is False
+    assert app.running is True
+    app.shutdown()
+
+
+def test_app_tutorial_dismissal_consumes_interaction_keypress():
+    app = App(seed=0, show_tutorial=True)
+    app.player.pos = app.world_panel.switch_area("home")
+    cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
+    from evogame.ui.tilemap import TILE_PIXELS
+    app.player.pos = (cottage.col * TILE_PIXELS + 96.0, cottage.row * TILE_PIXELS + 96.0)
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+
+    assert app.tutorial_open is False
+    assert app.journal.open is False
+    assert app.journal.field_notes == []
+    app.shutdown()
+
+
+
+def test_app_opening_journal_with_j_does_not_unlock_auto_generations():
+    app = App(seed=0, show_tutorial=False)
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_j}))
+    app.step_one_frame(0)
+    app.journal.paused = False
+    app.step_one_frame(2000)
+
+    assert app.journal.open is True
+    assert app.research_unlocked is False
+    assert app.sim.generation == 0
+    app.shutdown()
+
+
+def test_app_pond_interaction_starts_fishing_without_opening_research_generations():
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("pond")
+    bounds = app.world_panel.scene.pond_pixel_bounds()
+    app.player.pos = (bounds.centerx - app.player.size[0] / 2, bounds.centery - app.player.size[1] / 2)
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+    app.journal.paused = False
+    app.step_one_frame(1100)
+
+    assert app.fishing_minigame is not None
+    assert app.journal.open is False
+    assert app.sim.generation == 0
+    app.shutdown()
+
+
+def test_app_fishing_geometry_uses_player_sprite_hand():
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("pond")
+    bounds = app.world_panel.scene.pond_pixel_bounds()
+    app.player.pos = (bounds.left - app.player.size[0] - 8.0, bounds.centery - app.player.size[1] / 2)
+
+    app._start_fishing()
+
+    assert app.fishing_minigame is not None
+    handle = app._current_fishing_geometry()["handle"]
+    player_screen_rect = pygame.Rect(
+        int(app.world_panel.rect.left + app.player.pos[0]),
+        int(app.world_panel.rect.top + app.player.pos[1]),
+        app.player.size[0],
+        app.player.size[1],
+    )
+    assert abs(handle[0] - player_screen_rect.right) <= 4
+    assert player_screen_rect.top <= handle[1] <= player_screen_rect.bottom
+    app.shutdown()
+
+
+def test_app_attracts_only_nearest_two_fish_while_waiting_for_bite():
+    from evogame.ui.pond import VisibleFish
+
+    app = App(seed=0, show_tutorial=False)
+    app.world_panel.switch_area("pond")
+    app.world_panel.pond_view.bounds = pygame.Rect(0, 0, 300, 200)
+    app.world_panel.pond_view.fish = [
+        VisibleFish("red", 1.0, (90.0, 100.0), 0.0, 0.0, 1000.0),
+        VisibleFish("pink", 1.0, (120.0, 100.0), 0.0, 0.0, 1000.0),
+        VisibleFish("white", 1.0, (220.0, 100.0), 0.0, 0.0, 1000.0),
+    ]
+    app.fishing_minigame = type("FishingStub", (), {
+        "bite_detected": False,
+        "bobber_pos": (100.0, 100.0),
+        "check_for_bite": lambda self, positions: False,
+        "update": lambda self, dt_ms: None,
+        "draw": lambda self, surface, font, pond_bounds=None: None,
+        "handle_event": lambda self, event: None,
+    })()
+
+    app.step_one_frame(1000.0)
+
+    assert app.world_panel.pond_view.fish[0].pos[0] > 90.0
+    assert app.world_panel.pond_view.fish[1].pos[0] < 120.0
+    assert app.world_panel.pond_view.fish[2].pos == (220.0, 100.0)
+    app.shutdown()
+
+
+def test_app_clicking_bird_cage_opens_bird_page_and_unlocks_research():
+    app = App(seed=0, show_tutorial=False)
+    cage = app.world_panel.home_habitat_rects()["bird"]
+
+    pygame.event.post(pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN,
+        {"button": 1, "pos": cage.center},
+    ))
+    app.step_one_frame(0)
+
+    assert app.journal.open is True
+    assert app.journal.current_page == "birds"
+    assert app.research_unlocked is True
+    app.shutdown()
+
 def test_app_does_not_advance_until_research_started():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.step_one_frame(1100)
     assert app.sim.generation == 0
     app.shutdown()
 
 
 def test_app_advances_generation_when_pond_research_running():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
+    app.research_unlocked = True
     app.journal.open = True
     app.journal.paused = False
     app.step_one_frame(1100)
@@ -29,7 +181,7 @@ def test_app_advances_generation_when_pond_research_running():
 
 
 def test_app_does_not_advance_when_paused():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.journal.open = True
     app.journal.paused = True
     app.step_one_frame(2000)
@@ -38,7 +190,8 @@ def test_app_does_not_advance_when_paused():
 
 
 def test_app_runs_for_n_generations():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
+    app.research_unlocked = True
     app.journal.open = True
     app.journal.paused = False
     app.run_for_generations(5, max_frames=200)
@@ -47,7 +200,8 @@ def test_app_runs_for_n_generations():
 
 
 def test_app_does_not_advance_when_extinct():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
+    app.research_unlocked = True
     app.journal.open = True
     app.journal.paused = False
     app.sim.extinct = True
@@ -57,7 +211,7 @@ def test_app_does_not_advance_when_extinct():
 
 
 def test_app_quit_event_stops_running():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     pygame.event.post(pygame.event.Event(pygame.QUIT))
     app.step_one_frame(0)
     assert app.running is False
@@ -65,7 +219,7 @@ def test_app_quit_event_stops_running():
 
 
 def test_app_j_key_toggles_journal():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     assert app.journal.open is False
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_j}))
     app.step_one_frame(0)
@@ -77,7 +231,7 @@ def test_app_j_key_toggles_journal():
 
 
 def test_app_tab_cycles_field_sites_for_quick_travel():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
 
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_TAB}))
     app.step_one_frame(0)
@@ -95,7 +249,7 @@ def test_app_tab_cycles_field_sites_for_quick_travel():
 
 
 def test_app_escape_closes_journal_when_open():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.journal.open = True
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_ESCAPE}))
     app.step_one_frame(0)
@@ -105,7 +259,7 @@ def test_app_escape_closes_journal_when_open():
 
 
 def test_app_escape_quits_when_journal_closed():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     assert app.journal.open is False
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_ESCAPE}))
     app.step_one_frame(0)
@@ -114,7 +268,7 @@ def test_app_escape_quits_when_journal_closed():
 
 
 def test_app_e_near_cottage_opens_journal():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("home")
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     from evogame.ui.tilemap import TILE_PIXELS
@@ -127,7 +281,7 @@ def test_app_e_near_cottage_opens_journal():
 
 
 def test_app_e_near_cottage_records_home_base_note_once():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("home")
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     from evogame.ui.tilemap import TILE_PIXELS
@@ -146,7 +300,7 @@ def test_app_e_near_cottage_records_home_base_note_once():
 
 
 def test_app_status_strip_confirms_home_base_note_saved():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("home")
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     from evogame.ui.tilemap import TILE_PIXELS
@@ -169,7 +323,7 @@ def test_app_status_strip_confirms_home_base_note_saved():
 
 
 def test_app_status_strip_celebrates_completed_field_note_coverage():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("home")
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     from evogame.ui.tilemap import TILE_PIXELS
@@ -195,7 +349,7 @@ def test_app_status_strip_celebrates_completed_field_note_coverage():
 
 
 def test_app_status_strip_explains_duplicate_home_base_note():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("home")
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     from evogame.ui.tilemap import TILE_PIXELS
@@ -216,7 +370,7 @@ def test_app_status_strip_explains_duplicate_home_base_note():
 
 
 def test_app_enter_key_also_interacts_near_cottage():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("home")
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     from evogame.ui.tilemap import TILE_PIXELS
@@ -230,7 +384,7 @@ def test_app_enter_key_also_interacts_near_cottage():
 
 
 def test_app_clicking_pond_opens_research_panel():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds().move(
         app.world_panel.rect.left,
@@ -246,7 +400,7 @@ def test_app_clicking_pond_opens_research_panel():
 
 
 def test_app_e_near_pond_records_guppy_sample_note():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds()
     app.player.pos = (
@@ -257,7 +411,7 @@ def test_app_e_near_pond_records_guppy_sample_note():
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
     app.step_one_frame(0)
 
-    assert app.journal.open is True
+    assert app.journal.open is False
     note = app.journal.field_notes[0]
     assert note.startswith("Pond Study Site: generation 0 guppy population sampled for allele frequencies")
     assert "population 30" in note
@@ -267,7 +421,7 @@ def test_app_e_near_pond_records_guppy_sample_note():
 
 
 def test_app_pressing_e_near_pond_announces_sample_saved():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds()
     app.player.pos = (
@@ -278,13 +432,13 @@ def test_app_pressing_e_near_pond_announces_sample_saved():
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
     app.step_one_frame(0)
 
-    assert app.journal.open is True
-    assert app._status_message == "Pond sample saved to field journal."
+    assert app.journal.open is False
+    assert app._status_message == "Fishing started: wait for a fish to touch the bobber."
     app.shutdown()
 
 
 def test_app_pond_sample_can_complete_field_note_coverage():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds()
     app.player.pos = (
@@ -297,13 +451,13 @@ def test_app_pond_sample_can_complete_field_note_coverage():
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
     app.step_one_frame(0)
 
-    assert app.journal.open is True
-    assert app._status_message == "Field notes complete: all field sites documented."
+    assert app.journal.open is False
+    assert app._status_message == "Fishing started: wait for a fish to touch the bobber."
     app.shutdown()
 
 
 def test_app_repeated_pond_sample_announces_duplicate_note():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds()
     app.player.pos = (
@@ -327,7 +481,7 @@ def test_app_repeated_pond_sample_announces_duplicate_note():
 
 
 def test_app_pond_sample_note_includes_current_generation():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds()
     app.player.pos = (
@@ -348,7 +502,7 @@ def test_app_pond_sample_note_includes_current_generation():
 
 
 def test_app_pond_sample_note_records_predator_pressure():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("pond")
     bounds = app.world_panel.scene.pond_pixel_bounds()
     app.player.pos = (
@@ -365,7 +519,7 @@ def test_app_pond_sample_note_records_predator_pressure():
 
 
 def test_app_clicking_cottage_opens_journal():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     cottage = next(o for o in app.world_panel.scene.objects if o.kind == "cottage")
     pos = (
         app.world_panel.rect.left + (cottage.col + 3) * 32,
@@ -381,7 +535,7 @@ def test_app_clicking_cottage_opens_journal():
 
 
 def test_app_clicking_backdrop_closes_open_journal():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.journal.open = True
     pygame.event.post(pygame.event.Event(
         pygame.MOUSEBUTTONDOWN,
@@ -393,7 +547,7 @@ def test_app_clicking_backdrop_closes_open_journal():
 
 
 def test_app_area_shortcuts_switch_current_area():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_1}))
     app.step_one_frame(0)
     assert app.world_panel.area_id == "home"
@@ -407,7 +561,7 @@ def test_app_area_shortcuts_switch_current_area():
 
 
 def test_app_first_area_shortcut_records_survey_note():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
 
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_3}))
     app.step_one_frame(0)
@@ -419,7 +573,7 @@ def test_app_first_area_shortcut_records_survey_note():
 
 
 def test_app_revisiting_area_does_not_duplicate_survey_note():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
 
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_3}))
     app.step_one_frame(0)
@@ -435,7 +589,7 @@ def test_app_revisiting_area_does_not_duplicate_survey_note():
 
 
 def test_app_status_strip_announces_area_transition():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     captured = {}
 
     def fake_draw(*args, **kwargs):
@@ -454,7 +608,7 @@ def test_app_status_strip_announces_area_transition():
 def test_app_passes_captive_habitat_counts_to_home_world_panel():
     from evogame.genetics import BUNNY_SCHEMA, GUPPY_SCHEMA, Creature
 
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.home_fish_habitat.add_founder(Creature.random(GUPPY_SCHEMA, app._gameplay_rng))
     app.home_bunny_habitat.add_founder(Creature.random(BUNNY_SCHEMA, app._gameplay_rng))
     app.home_bunny_habitat.add_founder(Creature.random(BUNNY_SCHEMA, app._gameplay_rng))
@@ -474,8 +628,46 @@ def test_app_passes_captive_habitat_counts_to_home_world_panel():
     app.shutdown()
 
 
+def test_app_passes_current_home_habitat_populations_to_world_panel():
+    from evogame.genetics import BIRD_SCHEMA, BUNNY_SCHEMA, GUPPY_SCHEMA, Creature
+
+    class PopulationStub:
+        def __init__(self, creatures):
+            self.creatures = creatures
+
+    app = App(seed=0, show_tutorial=False)
+    fish_founders = [Creature.random(GUPPY_SCHEMA, app._gameplay_rng) for _ in range(2)]
+    bird_founders = [Creature.random(BIRD_SCHEMA, app._gameplay_rng) for _ in range(2)]
+    bunny_founders = [Creature.random(BUNNY_SCHEMA, app._gameplay_rng) for _ in range(2)]
+    for creature in fish_founders:
+        app.home_fish_habitat.add_founder(creature)
+    for creature in bird_founders:
+        app.home_bird_habitat.add_founder(creature)
+    for creature in bunny_founders:
+        app.home_bunny_habitat.add_founder(creature)
+    current_fish = [Creature.random(GUPPY_SCHEMA, app._gameplay_rng) for _ in range(3)]
+    current_birds = [Creature.random(BIRD_SCHEMA, app._gameplay_rng) for _ in range(4)]
+    current_bunnies = [Creature.random(BUNNY_SCHEMA, app._gameplay_rng) for _ in range(5)]
+    app.home_fish_habitat.population = PopulationStub(current_fish)
+    app.home_bird_habitat.population = PopulationStub(current_birds)
+    app.home_bunny_habitat.population = PopulationStub(current_bunnies)
+    captured = {}
+
+    def fake_draw(*args, **kwargs):
+        captured.update(kwargs)
+
+    app.world_panel.draw = fake_draw
+
+    app.step_one_frame(0)
+
+    assert captured["home_fish_creatures"] is current_fish
+    assert captured["home_bird_creatures"] is current_birds
+    assert captured["home_bunny_creatures"] is current_bunnies
+    app.shutdown()
+
+
 def test_app_current_area_shortcut_does_not_warp_player():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = (123.0, 234.0)
 
     pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_1}))
@@ -487,7 +679,7 @@ def test_app_current_area_shortcut_does_not_warp_player():
 
 
 def test_app_current_area_shortcut_confirms_already_there():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     captured = {}
 
     def fake_draw(*args, **kwargs):
@@ -503,7 +695,7 @@ def test_app_current_area_shortcut_confirms_already_there():
 
 
 def test_app_clicking_area_minimap_switches_area():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     pond_node = app.world_panel.area_minimap_node_rects()["pond"]
 
     pygame.event.post(pygame.event.Event(
@@ -518,7 +710,7 @@ def test_app_clicking_area_minimap_switches_area():
 
 
 def test_app_clicking_area_exit_marker_switches_area():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     pond_marker = app.world_panel.area_exit_marker_rects()["pond"]
 
     pygame.event.post(pygame.event.Event(
@@ -533,7 +725,7 @@ def test_app_clicking_area_exit_marker_switches_area():
 
 
 def test_app_clicking_current_minimap_area_does_not_warp_player():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = (123.0, 234.0)
     home_node = app.world_panel.area_minimap_node_rects()["home"]
 
@@ -549,7 +741,7 @@ def test_app_clicking_current_minimap_area_does_not_warp_player():
 
 
 def test_app_p_key_reaches_open_journal_instead_of_area_shortcut():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.world_panel.switch_area("home")
     app.journal.open = True
 
@@ -566,7 +758,7 @@ def test_app_e_near_wildlife_records_field_note():
 
     from evogame.ui.wildlife import Bunny
 
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("forest")
     app.world_panel.wildlife = [Bunny(
         pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
@@ -588,7 +780,7 @@ def test_app_clicking_near_wildlife_records_field_note():
 
     from evogame.ui.wildlife import Bunny
 
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("forest")
     bunny_pos = (app.player.pos[0] + 18.0, app.player.pos[1] + 12.0)
     app.world_panel.wildlife = [Bunny(
@@ -616,7 +808,7 @@ def test_app_clicking_bunny_prompt_records_field_note():
 
     from evogame.ui.wildlife import Bunny
 
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("forest")
     app.world_panel.wildlife = [Bunny(
         pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
@@ -646,7 +838,7 @@ def test_app_status_strip_confirms_wildlife_observation_saved():
 
     from evogame.ui.wildlife import Bunny
 
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("forest")
     app.world_panel.wildlife = [Bunny(
         pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
@@ -672,7 +864,7 @@ def test_app_status_strip_explains_duplicate_wildlife_observation():
 
     from evogame.ui.wildlife import Bunny
 
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = app.world_panel.switch_area("forest")
     app.world_panel.wildlife = [Bunny(
         pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
@@ -697,7 +889,7 @@ def test_app_status_strip_explains_duplicate_wildlife_observation():
 
 
 def test_app_refreshes_visible_pond_fish_after_journal_reset():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.world_panel.switch_area("pond")
     app.journal.open = True
     app.sim.tick()
@@ -717,7 +909,7 @@ def test_app_refreshes_visible_pond_fish_after_journal_reset():
 
 
 def test_app_refreshes_visible_pond_fish_after_manual_journal_step():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.world_panel.switch_area("pond")
     app.journal.open = True
     app.journal.paused = True
@@ -737,7 +929,8 @@ def test_app_refreshes_visible_pond_fish_after_manual_journal_step():
 
 
 def test_app_manual_journal_step_clears_continuous_run_timer():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
+    app.research_unlocked = True
     app.journal.open = True
     app.journal.paused = False
     app.step_one_frame(900)
@@ -758,7 +951,8 @@ def test_app_manual_journal_step_clears_continuous_run_timer():
 
 
 def test_app_journal_reset_clears_continuous_run_timer():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
+    app.research_unlocked = True
     app.journal.open = True
     app.journal.paused = False
     app.step_one_frame(900)
@@ -775,7 +969,7 @@ def test_app_journal_reset_clears_continuous_run_timer():
 
 
 def test_app_home_edge_paths_transition_to_field_areas():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     app.player.pos = (app.world_panel.scene.tilemap.pixel_width - 20.0, 10 * 32.0)
     app.step_one_frame(0)
     assert app.world_panel.area_id == "pond"
@@ -787,7 +981,7 @@ def test_app_home_edge_paths_transition_to_field_areas():
 
 
 def test_app_status_strip_shows_nearby_area_exit_hint():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     captured = {}
 
     def fake_draw(*args, **kwargs):
@@ -804,7 +998,7 @@ def test_app_status_strip_shows_nearby_area_exit_hint():
 
 
 def test_app_e_key_uses_nearby_area_exit_hint():
-    app = App(seed=0)
+    app = App(seed=0, show_tutorial=False)
     # Near enough to use the path deliberately, but not close enough for auto-transition.
     app.player.pos = (app.world_panel.scene.tilemap.pixel_width - 70.0, 10 * 32.0)
 
@@ -813,4 +1007,257 @@ def test_app_e_key_uses_nearby_area_exit_hint():
 
     assert app.world_panel.area_id == "pond"
     assert app.player.pos == app.world_panel.scene.entry_spawns["home"]
+    app.shutdown()
+
+
+def test_app_initializes_bird_cage_habitat():
+    app = App(seed=0, show_tutorial=False)
+
+    assert app.home_bird_habitat.species_name == "bird"
+
+    app.shutdown()
+
+
+def test_app_e_near_bird_starts_bird_capture_minigame():
+    import random
+
+    from evogame.ui.wildlife import Bird
+
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("forest")
+    app.world_panel.wildlife = [Bird(
+        pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
+        scene=app.world_panel.scene,
+        rng=random.Random(1),
+    )]
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+
+    assert app.capture_minigame is not None
+    assert app._active_capture_species == "bird"
+    app.shutdown()
+
+
+def test_app_e_near_bunny_starts_bunny_capture_minigame():
+    import random
+
+    from evogame.ui.wildlife import Bunny
+
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("forest")
+    app.world_panel.wildlife = [Bunny(
+        pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0),
+        scene=app.world_panel.scene,
+        rng=random.Random(1),
+    )]
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+
+    assert app.capture_minigame is not None
+    assert app._active_capture_species == "bunny"
+    app.shutdown()
+
+
+def test_app_successful_bird_capture_enter_adds_founder_to_bird_cage():
+    import random
+
+    from evogame.ui.wildlife import Bird
+
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("forest")
+    bird = Bird(pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0), scene=app.world_panel.scene, rng=random.Random(1))
+    app.world_panel.wildlife = [bird]
+
+    assert app._start_bird_capture() is True
+    app.capture_minigame.target_center = 0.50
+    app.capture_minigame.target_width = 0.20
+    app.capture_minigame.marker_position = 0.50
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_RETURN}))
+    app.step_one_frame(0)
+
+    assert len(app.home_bird_habitat.founders) == 1
+    assert app.home_bird_habitat.founders[0] is bird.creature
+    app.shutdown()
+
+
+def test_app_successful_bunny_capture_enter_adds_founder_to_home_pen():
+    import random
+
+    from evogame.ui.wildlife import Bunny
+
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("forest")
+    bunny = Bunny(pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0), scene=app.world_panel.scene, rng=random.Random(1))
+    app.world_panel.wildlife = [bunny]
+
+    assert app._start_bunny_capture() is True
+    app.capture_minigame.target_center = 0.50
+    app.capture_minigame.target_width = 0.20
+    app.capture_minigame.marker_position = 0.50
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_RETURN}))
+    app.step_one_frame(0)
+
+    assert len(app.home_bunny_habitat.founders) == 1
+    assert app.home_bunny_habitat.founders[0] is bunny.creature
+    app.shutdown()
+
+
+def test_app_e_near_pond_starts_fishing_minigame_and_records_sample():
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("pond")
+    bounds = app.world_panel.scene.pond_pixel_bounds()
+    app.player.pos = (bounds.centerx - app.player.size[0] / 2, bounds.centery - app.player.size[1] / 2)
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+
+    assert app.fishing_minigame is not None
+    assert app.fishing_minigame.bite_detected is False
+    assert app.journal.open is False
+    assert "Fishing started" in app._status_message
+    app.shutdown()
+
+
+def test_app_fishing_bite_auto_adds_founder_without_enter_or_space():
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("pond")
+    bounds = app.world_panel.scene.pond_pixel_bounds()
+    app.player.pos = (bounds.centerx - app.player.size[0] / 2, bounds.centery - app.player.size[1] / 2)
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+    assert app.fishing_minigame is not None
+    fish = app.world_panel.pond_view.fish[0]
+    fish.pos = app.fishing_minigame.bobber_pos
+    caught = app.fishing_minigame.selected
+    app.step_one_frame(0)
+
+    assert app.fishing_minigame is None
+    assert app.home_fish_habitat.founders[-1] is caught
+    assert app._status_message == "Congrats, you caught a fish!"
+    app.shutdown()
+
+
+def test_app_successful_bird_capture_shows_short_congrats_then_disappears_and_removes_visible_animal():
+    import random
+
+    from evogame.ui.wildlife import Bird
+
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("forest")
+    bird = Bird(pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0), scene=app.world_panel.scene, rng=random.Random(1))
+    app.world_panel.wildlife = [bird]
+
+    assert app._start_bird_capture() is True
+    app.capture_minigame.target_center = 0.50
+    app.capture_minigame.target_width = 0.20
+    app.capture_minigame.marker_position = 0.50
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_RETURN}))
+    app.step_one_frame(0)
+
+    assert app._status_message == "Bird captured!"
+    assert app.world_panel.wildlife == []
+    app.step_one_frame(1800)
+    assert app._status_message is None
+    app._switch_area_if_changed("home")
+    app._switch_area_if_changed("forest")
+    assert len(app.world_panel.wildlife) >= 1
+    app.shutdown()
+
+
+def test_app_successful_bunny_capture_shows_short_congrats_then_disappears_and_removes_visible_animal():
+    import random
+
+    from evogame.ui.wildlife import Bunny
+
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("forest")
+    bunny = Bunny(pos=(app.player.pos[0] + 18.0, app.player.pos[1] + 12.0), scene=app.world_panel.scene, rng=random.Random(1))
+    app.world_panel.wildlife = [bunny]
+
+    assert app._start_bunny_capture() is True
+    app.capture_minigame.target_center = 0.50
+    app.capture_minigame.target_width = 0.20
+    app.capture_minigame.marker_position = 0.50
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_RETURN}))
+    app.step_one_frame(0)
+
+    assert app._status_message == "Bunny captured!"
+    assert app.world_panel.wildlife == []
+    app.step_one_frame(1800)
+    assert app._status_message is None
+    app.shutdown()
+
+
+def test_app_successful_fish_capture_shows_short_congrats_then_disappears_and_visible_count_resets_on_reentry():
+    app = App(seed=0, show_tutorial=False)
+    app.player.pos = app.world_panel.switch_area("pond")
+    app.world_panel.pond_view.refresh(app.sim.population.creatures)
+    initial_visible = len(app.world_panel.pond_view.fish)
+
+    app._start_fishing()
+    fish = app.world_panel.pond_view.fish[0]
+    fish.pos = app.fishing_minigame.bobber_pos
+    app.step_one_frame(0)
+
+    assert app._status_message == "Congrats, you caught a fish!"
+    assert len(app.world_panel.pond_view.fish) == initial_visible - 1
+    app.step_one_frame(1800)
+    assert app._status_message is None
+    app._switch_area_if_changed("home")
+    app._switch_area_if_changed("pond")
+    assert len(app.world_panel.pond_view.fish) == initial_visible
+    app.shutdown()
+
+
+
+def test_app_e_near_home_bunny_pen_opens_bunny_research_journal():
+    app = App(seed=0, show_tutorial=False)
+    pen = app.world_panel.home_habitat_rects()["bunny"]
+    app.player.pos = (
+        pen.centerx - app.world_panel.rect.left - app.player.size[0] / 2,
+        pen.centery - app.world_panel.rect.top - app.player.size[1] / 2,
+    )
+
+    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_e}))
+    app.step_one_frame(0)
+
+    assert app.journal.open is True
+    assert app.journal.current_page == "bunnies"
+    assert app.journal.active_habitat is app.home_bunny_habitat
+    assert app.journal.chart_genes == ("coat_color", "ear_length", "speed", "boldness")
+    app.shutdown()
+
+
+def test_app_home_bunny_pen_journal_runs_captive_generations_instead_of_fish():
+    from evogame.genetics import BUNNY_SCHEMA, Creature
+
+    app = App(seed=0, show_tutorial=False)
+    app.home_bunny_habitat.add_founder(Creature.random(BUNNY_SCHEMA, app._gameplay_rng))
+    app.home_bunny_habitat.add_founder(Creature.random(BUNNY_SCHEMA, app._gameplay_rng))
+    app._open_research_from_habitat("bunny")
+    app.journal.paused = False
+    app.journal.speed_slider.value = 5.0
+
+    app.step_one_frame(1100)
+
+    assert app.home_bunny_habitat.generation >= 1
+    assert app.sim.generation == 0
+    assert len(app.home_bunny_habitat.population.creatures) <= app.home_bunny_habitat.carrying_capacity
+    app.shutdown()
+
+
+def test_app_home_bunny_pen_predator_toggle_targets_bunny_habitat_traits():
+    app = App(seed=0, show_tutorial=False)
+    app._open_research_from_habitat("bunny")
+    app.journal.open = True
+
+    app.journal.handle_event(pygame.event.Event(pygame.KEYDOWN, {"key": pygame.K_p}))
+
+    assert app.home_bunny_habitat.predator_on is True
+    assert app.home_bunny_habitat.predator_gene == "speed"
+    assert app.sim.pressure.predator_on is False
+    assert "slow bunnies" in app.journal.predator_selection_hint_text()
     app.shutdown()

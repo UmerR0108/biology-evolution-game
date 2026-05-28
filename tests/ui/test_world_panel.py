@@ -48,7 +48,7 @@ def test_world_panel_exposes_area_title_and_guidance():
     panel.switch_area("pond")
     assert panel.area_title_and_guidance() == (
         "Pond Study Site",
-        "Watch guppies here; press E near water to open research data.",
+        "Watch guppies here; press E near water to catch fish with the rod and bobber.",
     )
 
     panel.switch_area("forest")
@@ -132,10 +132,27 @@ def test_world_panel_home_base_exposes_captive_habitat_rects():
 
     rects = panel.home_habitat_rects()
 
-    assert set(rects) == {"fish", "bunny"}
+    assert set(rects) == {"fish", "bunny", "bird"}
     assert rects["fish"].left < rects["bunny"].left
     assert rects["fish"].top > 300
+    assert rects["bird"].bottom < rects["fish"].top
     assert rects["bunny"].top > 300
+
+
+def test_world_panel_home_bird_cage_does_not_block_path_to_pond():
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+
+    bird_rect = panel.home_habitat_rects()["bird"]
+    pond_path_rect = pygame.Rect(
+        panel.rect.left + 15 * 32,
+        panel.rect.top + 10 * 32,
+        panel.rect.right - (panel.rect.left + 15 * 32),
+        32,
+    )
+    pond_marker = panel.area_exit_marker_rects()["pond"]
+
+    assert not bird_rect.colliderect(pond_path_rect)
+    assert not bird_rect.colliderect(pond_marker.inflate(panel.EXIT_MARKER_CLICK_MARGIN * 2, panel.EXIT_MARKER_CLICK_MARGIN * 2))
 
 
 def test_world_panel_draws_home_captive_habitat_areas_when_at_home():
@@ -158,6 +175,221 @@ def test_world_panel_draws_home_captive_habitat_areas_when_at_home():
     bunny_pixel = surface.get_at(rects["bunny"].center)
     assert fish_pixel.b > fish_pixel.r
     assert bunny_pixel.r > bunny_pixel.b
+
+
+
+def test_world_panel_draws_birds_inside_home_cage_for_founders():
+    pygame.font.init()
+    surface = pygame.Surface((1000, 620))
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    font = pygame.font.SysFont("arial", 12)
+    cage = panel.home_habitat_rects()["bird"]
+    sample = (cage.left + 48, cage.top + 52)
+
+    panel.draw(surface, font=font, home_bird_founders=0)
+    empty_pixel = surface.get_at(sample)
+    panel.draw(surface, font=font, home_bird_founders=2)
+    bird_pixel = surface.get_at(sample)
+
+    assert bird_pixel != empty_pixel
+    assert bird_pixel.r > bird_pixel.g
+
+
+def test_world_panel_home_habitats_hide_founder_sprites_until_founders_exist():
+    pygame.font.init()
+    surface = pygame.Surface((1000, 620))
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    font = pygame.font.SysFont("arial", 12)
+    rects = panel.home_habitat_rects()
+    samples = {
+        "fish": (rects["fish"].left + 42, rects["fish"].centery - 8),
+        "bird": (rects["bird"].left + 48, rects["bird"].top + 52),
+        "bunny": (rects["bunny"].left + 42, rects["bunny"].centery),
+    }
+
+    panel.draw(surface, font=font, home_fish_founders=0, home_bird_founders=0, home_bunny_founders=0)
+    empty_pixels = {name: surface.get_at(pos) for name, pos in samples.items()}
+    panel.draw(surface, font=font, home_fish_founders=1, home_bird_founders=1, home_bunny_founders=1)
+    founder_pixels = {name: surface.get_at(pos) for name, pos in samples.items()}
+
+    assert founder_pixels["fish"] != empty_pixels["fish"]
+    assert founder_pixels["bird"] != empty_pixels["bird"]
+    assert founder_pixels["bunny"] != empty_pixels["bunny"]
+
+
+def test_world_panel_home_founder_sprites_show_visible_trait_differences():
+    from evogame.genetics import BIRD_SCHEMA, BUNNY_SCHEMA, GUPPY_SCHEMA, Creature
+
+    pygame.font.init()
+    surface = pygame.Surface((1000, 620))
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    font = pygame.font.SysFont("arial", 12)
+    red_large_fish = Creature(
+        GUPPY_SCHEMA,
+        {
+            "color": (GUPPY_SCHEMA.genes[0].alleles[0], GUPPY_SCHEMA.genes[0].alleles[0]),
+            "fin_length": (GUPPY_SCHEMA.genes[1].alleles[0], GUPPY_SCHEMA.genes[1].alleles[1]),
+            "temp_tolerance": (GUPPY_SCHEMA.genes[2].alleles[0], GUPPY_SCHEMA.genes[2].alleles[0]),
+            "body_size": tuple((GUPPY_SCHEMA.genes[3].alleles[0], GUPPY_SCHEMA.genes[3].alleles[0]) for _ in range(3)),
+        },
+    )
+    white_small_fish = Creature(
+        GUPPY_SCHEMA,
+        {
+            "color": (GUPPY_SCHEMA.genes[0].alleles[1], GUPPY_SCHEMA.genes[0].alleles[1]),
+            "fin_length": (GUPPY_SCHEMA.genes[1].alleles[1], GUPPY_SCHEMA.genes[1].alleles[1]),
+            "temp_tolerance": (GUPPY_SCHEMA.genes[2].alleles[1], GUPPY_SCHEMA.genes[2].alleles[1]),
+            "body_size": tuple((GUPPY_SCHEMA.genes[3].alleles[1], GUPPY_SCHEMA.genes[3].alleles[1]) for _ in range(3)),
+        },
+    )
+    brown_bunny = Creature(
+        BUNNY_SCHEMA,
+        {
+            "coat_color": (BUNNY_SCHEMA.genes[0].alleles[0], BUNNY_SCHEMA.genes[0].alleles[0]),
+            "ear_length": (BUNNY_SCHEMA.genes[1].alleles[0], BUNNY_SCHEMA.genes[1].alleles[1]),
+            "speed": tuple((BUNNY_SCHEMA.genes[2].alleles[0], BUNNY_SCHEMA.genes[2].alleles[0]) for _ in range(3)),
+            "boldness": tuple((BUNNY_SCHEMA.genes[3].alleles[0], BUNNY_SCHEMA.genes[3].alleles[0]) for _ in range(3)),
+        },
+    )
+    white_bunny = Creature(
+        BUNNY_SCHEMA,
+        {
+            "coat_color": (BUNNY_SCHEMA.genes[0].alleles[1], BUNNY_SCHEMA.genes[0].alleles[1]),
+            "ear_length": (BUNNY_SCHEMA.genes[1].alleles[1], BUNNY_SCHEMA.genes[1].alleles[1]),
+            "speed": tuple((BUNNY_SCHEMA.genes[2].alleles[1], BUNNY_SCHEMA.genes[2].alleles[1]) for _ in range(3)),
+            "boldness": tuple((BUNNY_SCHEMA.genes[3].alleles[1], BUNNY_SCHEMA.genes[3].alleles[1]) for _ in range(3)),
+        },
+    )
+    brown_bird = Creature(
+        BIRD_SCHEMA,
+        {
+            "beak_shape": (BIRD_SCHEMA.genes[0].alleles[0], BIRD_SCHEMA.genes[0].alleles[0]),
+            "wing_span": tuple((BIRD_SCHEMA.genes[1].alleles[0], BIRD_SCHEMA.genes[1].alleles[0]) for _ in range(3)),
+            "coloration": (BIRD_SCHEMA.genes[2].alleles[0], BIRD_SCHEMA.genes[2].alleles[0]),
+        },
+    )
+    green_bird = Creature(
+        BIRD_SCHEMA,
+        {
+            "beak_shape": (BIRD_SCHEMA.genes[0].alleles[2], BIRD_SCHEMA.genes[0].alleles[2]),
+            "wing_span": tuple((BIRD_SCHEMA.genes[1].alleles[1], BIRD_SCHEMA.genes[1].alleles[1]) for _ in range(3)),
+            "coloration": (BIRD_SCHEMA.genes[2].alleles[1], BIRD_SCHEMA.genes[2].alleles[1]),
+        },
+    )
+
+    panel.draw(
+        surface,
+        font=font,
+        home_fish_founders=2,
+        home_bird_founders=2,
+        home_bunny_founders=2,
+        home_fish_founder_creatures=[red_large_fish, white_small_fish],
+        home_bird_founder_creatures=[brown_bird, green_bird],
+        home_bunny_founder_creatures=[brown_bunny, white_bunny],
+    )
+    rects = panel.home_habitat_rects()
+
+    fish_a = surface.get_at((rects["fish"].left + 42, rects["fish"].centery - 8))
+    fish_b = surface.get_at((rects["fish"].left + 76, rects["fish"].centery + 8))
+    bird_a = surface.get_at((rects["bird"].left + 48, rects["bird"].top + 52))
+    bird_b = surface.get_at((rects["bird"].left + 76, rects["bird"].top + 64))
+    bunny_a = surface.get_at((rects["bunny"].left + 42, rects["bunny"].centery))
+    bunny_b = surface.get_at((rects["bunny"].left + 76, rects["bunny"].centery))
+
+    assert fish_a != fish_b
+    assert bird_a != bird_b
+    assert bunny_a != bunny_b
+
+
+
+def test_world_panel_home_fish_uses_pond_tint_helper(monkeypatch, pygame_surface):
+    from evogame.genetics import GUPPY_SCHEMA, Creature
+
+    calls = []
+    base = pygame.Surface((24, 12), pygame.SRCALPHA)
+    base.fill((255, 255, 255, 255))
+
+    def fake_tint_fish(category):
+        calls.append(category)
+        return base
+
+    monkeypatch.setattr("evogame.ui.world_panel.tint_fish", fake_tint_fish, raising=False)
+    fish = Creature(
+        GUPPY_SCHEMA,
+        {
+            "color": (GUPPY_SCHEMA.genes[0].alleles[0], GUPPY_SCHEMA.genes[0].alleles[0]),
+            "fin_length": (GUPPY_SCHEMA.genes[1].alleles[0], GUPPY_SCHEMA.genes[1].alleles[1]),
+            "temp_tolerance": (GUPPY_SCHEMA.genes[2].alleles[0], GUPPY_SCHEMA.genes[2].alleles[0]),
+            "body_size": tuple((GUPPY_SCHEMA.genes[3].alleles[0], GUPPY_SCHEMA.genes[3].alleles[0]) for _ in range(3)),
+        },
+    )
+
+    WorldPanel._draw_home_fish_sprite(pygame_surface, (80, 80), fish)
+
+    assert calls == ["red"]
+
+
+def test_world_panel_home_habitats_render_current_population_creatures_when_provided(monkeypatch):
+    from evogame.genetics import BIRD_SCHEMA, BUNNY_SCHEMA, GUPPY_SCHEMA, Creature
+
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    surface = pygame.Surface((1000, 620))
+    current_fish = [Creature.random(GUPPY_SCHEMA, __import__("random").Random(i)) for i in range(3)]
+    current_birds = [Creature.random(BIRD_SCHEMA, __import__("random").Random(i)) for i in range(3)]
+    current_bunnies = [Creature.random(BUNNY_SCHEMA, __import__("random").Random(i)) for i in range(3)]
+    drawn = {"fish": [], "bird": [], "bunny": []}
+
+    monkeypatch.setattr(WorldPanel, "_draw_home_fish_sprite", classmethod(lambda cls, surf, center, creature: drawn["fish"].append(creature)))
+    monkeypatch.setattr(WorldPanel, "_draw_home_bird_sprite", classmethod(lambda cls, surf, center, creature: drawn["bird"].append(creature)))
+    monkeypatch.setattr(WorldPanel, "_draw_home_bunny_sprite", classmethod(lambda cls, surf, center, creature: drawn["bunny"].append(creature)))
+
+    panel.draw(
+        surface,
+        home_fish_founders=2,
+        home_bird_founders=2,
+        home_bunny_founders=2,
+        home_fish_creatures=current_fish,
+        home_bird_creatures=current_birds,
+        home_bunny_creatures=current_bunnies,
+    )
+
+    assert drawn["fish"] == current_fish
+    assert drawn["bird"] == current_birds
+    assert drawn["bunny"] == current_bunnies
+
+
+def test_world_panel_home_birds_use_same_renderer_as_forest_birds(monkeypatch):
+    from evogame.genetics import BIRD_SCHEMA, Creature
+    import evogame.ui.world_panel as world_panel
+
+    pygame.font.init()
+    surface = pygame.Surface((1000, 620))
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    bird = Creature(
+        BIRD_SCHEMA,
+        {
+            "beak_shape": (BIRD_SCHEMA.genes[0].alleles[0], BIRD_SCHEMA.genes[0].alleles[0]),
+            "wing_span": tuple((BIRD_SCHEMA.genes[1].alleles[0], BIRD_SCHEMA.genes[1].alleles[0]) for _ in range(3)),
+            "coloration": (BIRD_SCHEMA.genes[2].alleles[0], BIRD_SCHEMA.genes[2].alleles[0]),
+        },
+    )
+    calls = []
+
+    def fake_draw_bird_sprite(surface, center, *, creature, direction, frame_index, size, draw_backplate):
+        calls.append((center, creature, direction, frame_index, size, draw_backplate))
+        pygame.draw.circle(surface, (250, 10, 200), center, 4)
+
+    monkeypatch.setattr(world_panel, "draw_bird_sprite", fake_draw_bird_sprite)
+
+    panel.draw(
+        surface,
+        font=pygame.font.SysFont("arial", 12),
+        home_bird_founders=1,
+        home_bird_founder_creatures=[bird],
+    )
+
+    assert calls == [((730, 275), bird, "right", 0.0, (40, 40), False)]
+    assert surface.get_at((730, 275)) == (250, 10, 200, 255)
 
 
 def test_world_panel_reports_clicked_minimap_area():
@@ -186,6 +418,15 @@ def test_world_panel_minimap_labels_advertise_travel_shortcuts():
         "pond": "2 Pond",
         "forest": "3 Forest",
     }
+
+
+def test_world_panel_scales_cottage_as_whole_house_sprite(pygame_surface):
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+
+    cottage = panel._ensure_objects()["cottage"]
+
+    assert cottage.get_size() == (panel.COTTAGE_TILE_SIZE[0] * 32, panel.COTTAGE_TILE_SIZE[1] * 32)
+    assert 0.9 <= cottage.get_width() / cottage.get_height() <= 1.1
 
 
 def test_cottage_in_range_when_player_close(pygame_surface):
@@ -224,7 +465,7 @@ def test_world_panel_interaction_prompts_include_action_keys():
     panel.switch_area("pond")
     bounds = panel.scene.pond_pixel_bounds()
     player.pos = (bounds.centerx - player.size[0] / 2, bounds.centery - player.size[1] / 2)
-    assert panel.interaction_prompt_for_player(player) == "[E/Enter] Research Pond"
+    assert panel.interaction_prompt_for_player(player) == "[E/Enter] Catch Fish"
 
 
 def test_world_panel_reports_nearby_wildlife_observation():
@@ -254,6 +495,44 @@ def test_world_panel_reports_nearby_wildlife_observation():
 
     panel.wildlife[0].pos = (player.pos[0] + 140.0, player.pos[1])
     assert panel.wildlife_observation_for_player(player) is None
+
+
+def test_world_panel_forest_spawns_both_bunnies_and_birds():
+    from evogame.genetics import BIRD_SCHEMA, BUNNY_SCHEMA
+    from evogame.ui.wildlife import Bird, Bunny
+
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    panel.switch_area("forest")
+
+    assert any(isinstance(wildlife, Bunny) for wildlife in panel.wildlife)
+    assert any(isinstance(wildlife, Bird) for wildlife in panel.wildlife)
+    assert {wildlife.creature.schema for wildlife in panel.wildlife if wildlife.creature is not None} == {
+        BUNNY_SCHEMA,
+        BIRD_SCHEMA,
+    }
+
+
+def test_world_panel_reports_nearby_bird_observation_without_hiding_bunnies():
+    import random
+
+    from evogame.ui.player import Player
+    from evogame.ui.wildlife import Bird, Bunny
+
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    panel.switch_area("forest")
+    player = Player(pos=(10 * 32.0, 9 * 32.0))
+    panel.wildlife = [
+        Bunny(pos=(player.pos[0] + 42.0, player.pos[1] + 12.0), scene=panel.scene, rng=random.Random(1)),
+        Bird(pos=(player.pos[0] + 18.0, player.pos[1] + 12.0), scene=panel.scene, rng=random.Random(2)),
+    ]
+
+    assert panel.nearest_observable_bunny_for_player(player) is not None
+    assert panel.nearest_observable_bird_for_player(player) is not None
+    assert panel.wildlife_observation_for_player(player) == "Bird nearby: observe beak traits and forest foraging"
+    assert panel.interaction_prompt_for_player(player) == "[E/Enter] Observe bird: beak traits and forest foraging"
+    assert panel.wildlife_field_note_for_player(player) == (
+        "Forest Trail: bird beak traits observed near dense cover."
+    )
 
 
 def test_world_panel_anchors_wildlife_prompt_above_player():
@@ -323,6 +602,64 @@ def test_world_panel_spawns_three_bunnies(pygame_surface):
         col = int(bunny.pos[0] // 32)
         row = int(bunny.pos[1] // 32)
         assert panel.scene.tilemap.is_walkable(col, row)
+
+
+def test_world_panel_forest_has_more_birds_than_bunnies():
+    from evogame.ui.wildlife import Bird, Bunny
+
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    panel.switch_area("forest")
+
+    birds = [wildlife for wildlife in panel.wildlife if isinstance(wildlife, Bird)]
+    bunnies = [wildlife for wildlife in panel.wildlife if isinstance(wildlife, Bunny)]
+    assert len(panel.wildlife) >= 16
+    assert len(birds) >= 9
+    assert len(bunnies) >= 7
+    assert len(birds) > len(bunnies)
+
+
+def test_world_panel_forest_wildlife_spawns_inside_visible_margin():
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    panel.switch_area("forest")
+
+    margin = panel.WILDLIFE_SPAWN_MARGIN
+    for wildlife in panel.wildlife:
+        assert margin <= wildlife.pos[0] <= panel.scene.tilemap.pixel_width - margin
+        assert margin <= wildlife.pos[1] <= panel.scene.tilemap.pixel_height - margin
+
+
+def test_world_panel_home_base_exposes_bird_cage_and_larger_pond():
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+
+    rects = panel.home_habitat_rects()
+
+    assert set(rects) == {"fish", "bunny", "bird"}
+    assert rects["fish"].width >= 220
+    assert rects["fish"].height >= 110
+    assert rects["bird"].top < rects["bunny"].top
+
+
+def test_world_panel_draws_bird_cage_at_home():
+    pygame.font.init()
+    surface = pygame.Surface((1000, 620), pygame.SRCALPHA)
+    panel = WorldPanel(pygame.Rect(0, 24, 1000, 596))
+    font = pygame.font.SysFont("arial", 12)
+
+    panel.draw(surface, font=font, home_bird_founders=2, home_bird_generation=1)
+
+    cage = panel.home_habitat_rects()["bird"]
+    assert surface.get_at((cage.centerx, cage.top + 10)) != pygame.Color(0, 0, 0, 0)
+    assert surface.get_at(cage.center) != pygame.Color(0, 0, 0, 0)
+
+
+def test_world_panel_pond_site_has_expanded_water_area():
+    panel = WorldPanel(pygame.Rect(0, 0, 1000, 596))
+    panel.switch_area("pond")
+
+    bounds = panel.scene.pond_pixel_bounds()
+
+    assert bounds.width >= 288
+    assert bounds.height >= 192
 
 
 def test_world_panel_switches_between_three_areas(pygame_surface):

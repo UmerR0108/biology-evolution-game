@@ -226,6 +226,27 @@ def test_journal_click_chart_gene_button_ignored_when_closed(pygame_surface):
     assert journal.chart_panel.gene == "color"
 
 
+def test_journal_exposes_dedicated_bird_page_tab(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+
+    assert journal.page_labels()["birds"] == "Birds"
+    assert "birds" in journal.page_tab_rects()
+
+
+def test_journal_clicking_bird_tab_selects_bird_page(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    journal.open = True
+
+    journal.handle_event(pygame.event.Event(
+        pygame.MOUSEBUTTONDOWN,
+        {"button": 1, "pos": journal.page_tab_rects()["birds"].center},
+    ))
+
+    assert journal.current_page == "birds"
+
+
 def test_journal_plus_minus_keys_adjust_generation_speed_when_open(pygame_surface):
     sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
     journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
@@ -541,7 +562,32 @@ def test_journal_latest_observation_prompts_for_field_notes_when_empty(pygame_su
 
     lines = journal.latest_observation_lines()
 
-    assert "Field notes: none yet — press E near ponds, wildlife, or home base." in lines
+    assert "Field notes: none yet — press E near ponds, birds, bunnies, or home base." in lines
+
+
+def test_journal_tracks_bird_notes_separately_from_bunnies(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    bird_note = "Forest Trail: bird beak traits observed near dense cover."
+    bunny_note = "Forest Trail: bunny camouflage observed near dense cover."
+
+    journal.add_field_note(bird_note)
+    journal.add_field_note(bunny_note)
+
+    assert journal.bird_field_notes() == [bird_note]
+    assert journal.bunny_field_notes() == [bunny_note]
+    assert journal.bird_page_summary_text() == "Bird observations: 1"
+    assert journal.bird_page_cards() == [bird_note]
+
+
+def test_journal_observation_checklist_includes_birds(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    journal.add_field_note("Forest Trail: bird beak traits observed near dense cover.")
+
+    checklist = journal.observation_checklist_items()
+
+    assert ("Bird observed", True, "1 sightings") in checklist
 
 
 
@@ -725,6 +771,18 @@ def test_journal_controls_hint_mentions_note_scrolling(pygame_surface):
     assert "Home/End jump" in journal.controls_hint_text()
 
 
+def test_journal_controls_hint_wraps_inside_panel_width(pygame_surface):
+    sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
+    font = pygame.font.SysFont("arial", 12)
+    max_width = journal.panel_rect.width - 32
+
+    lines = journal.controls_hint_lines_for_width(font)
+
+    assert len(lines) >= 2
+    assert all(font.render(line, True, (255, 255, 255)).get_width() <= max_width for line in lines)
+
+
 def test_journal_draw_when_closed_no_op(pygame_surface):
     sim = SimController(GUPPY_SCHEMA, 10, 20, random.Random(0))
     journal = Journal(pygame.Rect(0, 0, 1000, 620), sim)
@@ -738,3 +796,12 @@ def test_journal_draw_when_open(pygame_surface):
     journal.open = True
     font = pygame.font.SysFont("arial", 12)
     journal.draw(pygame_surface, font)
+
+
+def test_journal_predator_label_explains_selection_pressure():
+    from evogame.genetics import GUPPY_SCHEMA
+    from evogame.sim.controller import SimController
+
+    journal = Journal(pygame.Rect(0, 0, 1000, 620), SimController(GUPPY_SCHEMA, 10, 20, __import__("random").Random(1)))
+
+    assert journal.predator_selection_hint_text() == "Preys on fish with small fins"

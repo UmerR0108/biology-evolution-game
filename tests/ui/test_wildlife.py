@@ -2,7 +2,7 @@ import random
 
 import pygame
 
-from evogame.ui.wildlife import Bunny
+from evogame.ui.wildlife import Bird, Bunny
 
 
 def test_bunny_idle_then_walk(pygame_surface):
@@ -115,3 +115,25 @@ def test_bunny_draw(pygame_surface):
     rng = random.Random(0)
     b = Bunny(pos=(100.0, 100.0), scene=scene, rng=rng)
     b.draw(pygame_surface, origin=(0, 0))
+
+
+def test_bird_draw_uses_shared_trait_renderer(monkeypatch, pygame_surface):
+    from evogame.ui.tilemap import build_forest_scene
+    import evogame.ui.wildlife as wildlife
+
+    scene = build_forest_scene()
+    bird = Bird(pos=(100.0, 100.0), scene=scene, rng=random.Random(0))
+    bird._direction = "right"
+    bird._frame_index = 1.0
+    calls = []
+
+    def fake_draw_bird_sprite(surface, center, *, creature, direction, frame_index, size, draw_backplate):
+        calls.append((center, creature, direction, frame_index, size, draw_backplate))
+        pygame.draw.circle(surface, (250, 10, 200), center, 4)
+
+    monkeypatch.setattr(wildlife, "draw_bird_sprite", fake_draw_bird_sprite)
+
+    bird.draw(pygame_surface, origin=(0, 0))
+
+    assert calls == [((100, 100), bird.creature, "right", 1.0, (40, 40), True)]
+    assert pygame_surface.get_at((100, 100)) == (250, 10, 200, 255)

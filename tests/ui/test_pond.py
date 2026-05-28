@@ -93,3 +93,29 @@ def test_pond_view_draws_ripple_around_visible_fish(monkeypatch):
         for x in range(28, 53)
         for y in range(32, 49)
     )
+
+
+def test_visible_fish_are_scaled_up_for_readable_trait_changes(pygame_surface):
+    from evogame.genetics import Creature, GUPPY_SCHEMA
+    from evogame.ui.pond import VisibleFish
+
+    rng = random.Random(0)
+    fish = VisibleFish.from_creature(Creature.random(GUPPY_SCHEMA, rng), (20.0, 20.0), rng)
+
+    assert fish.scale >= 1.35
+
+
+def test_pond_draw_uses_larger_sprite_scale(monkeypatch):
+    from evogame.ui.pond import PondView, VisibleFish
+    import evogame.ui.pond as pond
+
+    surface = pygame.Surface((120, 120), pygame.SRCALPHA)
+    view = PondView(pygame.Rect(0, 0, 120, 120), max_visible=1, rng=random.Random(0))
+    view.fish = [VisibleFish(color="red", scale=1.5, pos=(60.0, 60.0), heading=0.0, speed=0.0, next_turn_in_ms=1000.0)]
+    base = pygame.Surface((20, 10), pygame.SRCALPHA)
+    base.fill((255, 255, 255, 255))
+    monkeypatch.setattr(pond, "tint_fish", lambda color: base)
+
+    view.draw(surface, origin=(0, 0))
+
+    assert surface.get_at((72, 60)).a > 0

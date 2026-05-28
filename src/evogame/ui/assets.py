@@ -44,6 +44,9 @@ _FISH_PATH = os.path.join(
 _BUNNY_PATH = os.path.join(
     _ASSETS_ROOT, "animals", "MinifolksForestAnimals", "Outline", "MiniBunny.png",
 )
+_BIRD_PATH = os.path.join(
+    _ASSETS_ROOT, "animals", "MinifolksForestAnimals", "Outline", "MiniBird.png",
+)
 _LABLADY_PATH = os.path.join(
     _ASSETS_ROOT, "characters", "lablady", "lablady_spritesheet_BOXED.png",
 )
@@ -175,6 +178,14 @@ _BUNNY_FRAME_RECTS: tuple[tuple[int, int, int, int], ...] = (
     (64, 16, _BUNNY_TILE * 2, _BUNNY_TILE),
 )
 
+_BIRD_TILE = 16
+_BIRD_FRAME_RECTS: dict[str, tuple[tuple[int, int, int, int], ...]] = {
+    "down": tuple((i * _BIRD_TILE, 0, _BIRD_TILE, _BIRD_TILE) for i in range(4)),
+    "right": tuple((i * _BIRD_TILE, _BIRD_TILE, _BIRD_TILE, _BIRD_TILE) for i in range(4)),
+    # The fourth cell in this row is intentionally empty in the source sheet.
+    "up": tuple((i * _BIRD_TILE, _BIRD_TILE * 2, _BIRD_TILE, _BIRD_TILE) for i in range(3)),
+}
+
 
 def _maybe_convert_alpha(surface: pygame.Surface) -> pygame.Surface:
     """Call ``convert_alpha`` if a display is set; otherwise return as-is.
@@ -201,6 +212,11 @@ def _load_fish_image() -> pygame.Surface:
 @lru_cache(maxsize=1)
 def _load_bunny_image() -> pygame.Surface:
     return _maybe_convert_alpha(pygame.image.load(_BUNNY_PATH))
+
+
+@lru_cache(maxsize=1)
+def _load_bird_image() -> pygame.Surface:
+    return _maybe_convert_alpha(pygame.image.load(_BIRD_PATH))
 
 
 @lru_cache(maxsize=1)
@@ -398,6 +414,21 @@ def load_bunny_frames() -> dict[str, list[pygame.Surface]]:
         ]
         for direction in _BUNNY_DIRECTIONS
     }
+
+
+def load_bird_frames() -> dict[str, list[pygame.Surface]]:
+    """Return per-direction lists of bird animation frames.
+
+    MiniBird has explicit down/right/up rows. Left-facing frames are
+    independent flipped copies of the right-facing frames.
+    """
+    sheet = _load_bird_image()
+    frames: dict[str, list[pygame.Surface]] = {
+        direction: [sheet.subsurface(pygame.Rect(*rect)).copy() for rect in rects]
+        for direction, rects in _BIRD_FRAME_RECTS.items()
+    }
+    frames["left"] = [pygame.transform.flip(frame, True, False).copy() for frame in frames["right"]]
+    return frames
 
 
 def load_tree_sprite(tree_id: str, color: str = "green") -> pygame.Surface:

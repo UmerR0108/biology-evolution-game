@@ -3,8 +3,13 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-from evogame.ui.assets import load_cottage_sprite, load_decoration_sprite, load_tree_sprite
-from evogame.ui.pond import PondView
+from evogame.ui.assets import (
+    load_bunny_frames,
+    load_cottage_sprite,
+    load_decoration_sprite,
+    load_tree_sprite,
+)
+from evogame.ui.pond import PondView, tint_fish
 from evogame.ui.tilemap import (
     TILE_PIXELS,
     Scene,
@@ -12,16 +17,23 @@ from evogame.ui.tilemap import (
     build_forest_scene,
     build_home_scene,
 )
-from evogame.ui.wildlife import Bunny
+from evogame.ui.wildlife import Bird, Bunny, Wildlife, draw_bird_sprite
 
 if TYPE_CHECKING:
     from evogame.ui.player import Player
 
 
 class WorldPanel:
+    FOREST_WILDLIFE_SEQUENCE: tuple[type[Wildlife], ...] = (
+        Bird, Bunny, Bird, Bunny,
+        Bird, Bunny, Bird, Bunny,
+        Bird, Bunny, Bird, Bunny,
+        Bird, Bird, Bunny, Bird,
+    )
+    WILDLIFE_SPAWN_MARGIN = 28
     COTTAGE_INTERACT_RADIUS = 64
     COTTAGE_CLICK_MARGIN = 8
-    COTTAGE_TILE_SIZE = (7, 6)
+    COTTAGE_TILE_SIZE = (5, 5)
     POND_INTERACT_RADIUS = 56
     POND_CLICK_MARGIN = 8
     WILDLIFE_OBSERVATION_RADIUS = 72
@@ -39,6 +51,9 @@ class WorldPanel:
     HOME_POND_EDGE = (37, 93, 118)
     HOME_PEN_FILL = (170, 122, 72)
     HOME_PEN_EDGE = (93, 58, 32)
+    BIRD_CAGE_BAR = (214, 224, 216)
+    BIRD_CAGE_EDGE = (96, 80, 58)
+    BIRD_CAGE_WOOD = (126, 82, 42)
     AREA_GUIDANCE: dict[str, tuple[str, str]] = {
         "home": (
             "Home Base",
@@ -46,7 +61,7 @@ class WorldPanel:
         ),
         "pond": (
             "Pond Study Site",
-            "Watch guppies here; press E near water to open research data.",
+            "Watch guppies here; press E near water to catch fish with the rod and bobber.",
         ),
         "forest": (
             "Forest Trail",
@@ -74,19 +89,23 @@ class WorldPanel:
             rng=pond_rng or _rand_module.Random(0),
         )
 
-        self.wildlife: list[Bunny] = self._spawn_wildlife(self.scene)
+        self.wildlife: list[Wildlife] = self._spawn_wildlife(self.scene)
 
-    def _spawn_wildlife(self, scene: Scene) -> list[Bunny]:
-        wildlife: list[Bunny] = []
+    def _spawn_wildlife(self, scene: Scene) -> list[Wildlife]:
+        wildlife: list[Wildlife] = []
         if scene.area_id == "home":
             return wildlife
-        count = 4 if scene.area_id == "forest" else 3
-        for _ in range(count):
+        species_sequence: tuple[type[Wildlife], ...]
+        if scene.area_id == "forest":
+            species_sequence = self.FOREST_WILDLIFE_SEQUENCE
+        else:
+            species_sequence = (Bunny, Bunny, Bunny)
+        for wildlife_cls in species_sequence:
             for _attempt in range(20):
-                x = self._wildlife_rng.uniform(0, scene.tilemap.pixel_width)
-                y = self._wildlife_rng.uniform(0, scene.tilemap.pixel_height)
+                x = self._wildlife_rng.uniform(self.WILDLIFE_SPAWN_MARGIN, scene.tilemap.pixel_width - self.WILDLIFE_SPAWN_MARGIN)
+                y = self._wildlife_rng.uniform(self.WILDLIFE_SPAWN_MARGIN, scene.tilemap.pixel_height - self.WILDLIFE_SPAWN_MARGIN)
                 if scene.is_walkable_at_pixel(x, y):
-                    wildlife.append(Bunny(pos=(x, y), scene=scene, rng=self._wildlife_rng))
+                    wildlife.append(wildlife_cls(pos=(x, y), scene=scene, rng=self._wildlife_rng))
                     break
         return wildlife
 
@@ -202,24 +221,51 @@ class WorldPanel:
                 positions.append((self.rect.left + int(bunny.pos[0]), self.rect.top + int(bunny.pos[1])))
         return positions
 
-    def nearest_observable_bunny_for_player(self, player: "Player") -> Bunny | None:
+    def nearest_observable_wildlife_for_player(self, player: "Player") -> Wildlife | None:
         px = player.pos[0] + player.size[0] / 2
         py = player.pos[1] + player.size[1] / 2
         nearby = [
-            bunny for bunny in self.wildlife
-            if ((px - bunny.pos[0]) ** 2 + (py - bunny.pos[1]) ** 2) ** 0.5 <= self.WILDLIFE_OBSERVATION_RADIUS
+            wildlife for wildlife in self.wildlife
+            if ((px - wildlife.pos[0]) ** 2 + (py - wildlife.pos[1]) ** 2) ** 0.5 <= self.WILDLIFE_OBSERVATION_RADIUS
         ]
         if not nearby:
             return None
-        return min(nearby, key=lambda bunny: ((px - bunny.pos[0]) ** 2 + (py - bunny.pos[1]) ** 2))
+        return min(nearby, key=lambda wildlife: ((px - wildlife.pos[0]) ** 2 + (py - wildlife.pos[1]) ** 2))
+
+    def nearest_observable_bunny_for_player(self, player: "Player") -> Bunny | None:
+        px = player.pos[0] + player.size[0] / 2
+        py = player.pos[1] + player.size[1] / 2
+        bunnies = [
+            wildlife for wildlife in self.wildlife
+            if isinstance(wildlife, Bunny)
+            and ((px - wildlife.pos[0]) ** 2 + (py - wildlife.pos[1]) ** 2) ** 0.5 <= self.WILDLIFE_OBSERVATION_RADIUS
+        ]
+        if not bunnies:
+            return None
+        return min(bunnies, key=lambda wildlife: ((px - wildlife.pos[0]) ** 2 + (py - wildlife.pos[1]) ** 2))
+
+    def nearest_observable_bird_for_player(self, player: "Player") -> Bird | None:
+        px = player.pos[0] + player.size[0] / 2
+        py = player.pos[1] + player.size[1] / 2
+        birds = [
+            wildlife for wildlife in self.wildlife
+            if isinstance(wildlife, Bird)
+            and ((px - wildlife.pos[0]) ** 2 + (py - wildlife.pos[1]) ** 2) ** 0.5 <= self.WILDLIFE_OBSERVATION_RADIUS
+        ]
+        if not birds:
+            return None
+        return min(birds, key=lambda wildlife: ((px - wildlife.pos[0]) ** 2 + (py - wildlife.pos[1]) ** 2))
 
     def wildlife_observation_for_player(self, player: "Player") -> str | None:
-        if self.nearest_observable_bunny_for_player(player) is not None:
-            return "Bunny nearby: observe camouflage and foraging"
+        wildlife = self.nearest_observable_wildlife_for_player(player)
+        if wildlife is not None:
+            return wildlife.observation_text
         return None
 
-    def _wildlife_field_note(self) -> str:
+    def _wildlife_field_note(self, wildlife: Wildlife | None = None) -> str:
         title, _guidance = self.area_title_and_guidance()
+        if isinstance(wildlife, Bird):
+            return f"{title}: bird beak traits observed near dense cover."
         if self.area_id == "pond":
             return (
                 f"{title}: bunny browsing near the bank; compare camouflage "
@@ -228,31 +274,33 @@ class WorldPanel:
         return f"{title}: bunny camouflage observed near dense cover."
 
     def wildlife_field_note_for_player(self, player: "Player") -> str | None:
-        if self.wildlife_observation_for_player(player) is None:
+        wildlife = self.nearest_observable_wildlife_for_player(player)
+        if wildlife is None:
             return None
-        return self._wildlife_field_note()
+        return self._wildlife_field_note(wildlife)
 
     def wildlife_field_note_at_screen_pos(self, pos: tuple[int, int]) -> str | None:
         world_x = pos[0] - self.rect.left
         world_y = pos[1] - self.rect.top
-        for bunny in self.wildlife:
-            if ((world_x - bunny.pos[0]) ** 2 + (world_y - bunny.pos[1]) ** 2) ** 0.5 <= 18:
-                return self._wildlife_field_note()
+        for wildlife in self.wildlife:
+            if ((world_x - wildlife.pos[0]) ** 2 + (world_y - wildlife.pos[1]) ** 2) ** 0.5 <= 18:
+                return self._wildlife_field_note(wildlife)
         return None
 
     def interaction_prompt_for_player(self, player: "Player") -> str | None:
         if self.pond_in_range(player):
-            return "[E/Enter] Research Pond"
+            return "[E/Enter] Catch Fish"
         if self.cottage_in_range(player):
             return "[E/Enter] Field Journal"
-        if self.wildlife_observation_for_player(player) is not None:
-            return "[E/Enter] Observe bunny: camouflage and foraging"
+        wildlife = self.nearest_observable_wildlife_for_player(player)
+        if wildlife is not None:
+            return wildlife.prompt_text
         return None
 
     def interaction_prompt_anchor_for_player(self, player: "Player", prompt: str | None) -> tuple[int, int] | None:
         if prompt is None:
             return None
-        if prompt == "[E/Enter] Research Pond":
+        if prompt == "[E/Enter] Catch Fish":
             bounds = self.scene.pond_pixel_bounds()
             return (self.rect.left + bounds.centerx - 52, self.rect.top + bounds.top - 18)
         if prompt == "[E/Enter] Field Journal":
@@ -262,7 +310,7 @@ class WorldPanel:
                     self.rect.left + cottage.col * TILE_PIXELS,
                     self.rect.top + cottage.row * TILE_PIXELS - 18,
                 )
-        if prompt.startswith("[E/Enter] Observe bunny"):
+        if prompt.startswith("[E/Enter] Observe "):
             return (
                 self.rect.left + int(player.pos[0]) - 52,
                 self.rect.top + int(player.pos[1]) - 18,
@@ -305,6 +353,15 @@ class WorldPanel:
         )
         return bounds.inflate(self.COTTAGE_CLICK_MARGIN * 2, self.COTTAGE_CLICK_MARGIN * 2).collidepoint(pos)
 
+    def home_habitat_at_screen_pos(self, pos: tuple[int, int]) -> str | None:
+        """Return the clicked home habitat id, if the click lands on one."""
+        if self.area_id != "home":
+            return None
+        for habitat_id, rect in self.home_habitat_rects().items():
+            if rect.collidepoint(pos):
+                return habitat_id
+        return None
+
     def _draw_forest_mood(self, surface: pygame.Surface) -> None:
         if self.area_id != "forest":
             return
@@ -314,11 +371,97 @@ class WorldPanel:
         surface.blit(overlay, self.rect.topleft)
 
     def home_habitat_rects(self) -> dict[str, pygame.Rect]:
-        """Return screen-space home pond and bunny pen rects for founder displays."""
+        """Return screen-space home pond, bunny pen, and bird cage rects."""
         return {
-            "fish": pygame.Rect(self.rect.left + 92, self.rect.top + 394, 168, 82),
-            "bunny": pygame.Rect(self.rect.left + 676, self.rect.top + 382, 190, 106),
+            "fish": pygame.Rect(self.rect.left + 72, self.rect.top + 360, 236, 122),
+            "bird": pygame.Rect(self.rect.left + 682, self.rect.top + 228, 184, 82),
+            "bunny": pygame.Rect(self.rect.left + 676, self.rect.top + 426, 190, 74),
         }
+
+
+    @staticmethod
+    def _phenotype_label(creature, name: str, default: str = "") -> str:
+        if creature is None:
+            return default
+        value = creature.phenotype.get(name)
+        return str(getattr(value, "category", getattr(value, "label", value if value is not None else default)))
+
+    @staticmethod
+    def _phenotype_number(creature, name: str, default: float = 0.5) -> float:
+        if creature is None:
+            return default
+        value = creature.phenotype.get(name)
+        raw = getattr(value, "value", default)
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _tinted_sprite(sprite: pygame.Surface, tint: tuple[int, int, int]) -> pygame.Surface:
+        tinted = sprite.copy()
+        for x in range(tinted.get_width()):
+            for y in range(tinted.get_height()):
+                color = tinted.get_at((x, y))
+                if color.a:
+                    brightness = max(color.r, color.g, color.b) / 255.0
+                    shaded = (
+                        min(255, int(tint[0] * (0.55 + brightness * 0.45))),
+                        min(255, int(tint[1] * (0.55 + brightness * 0.45))),
+                        min(255, int(tint[2] * (0.55 + brightness * 0.45))),
+                        color.a,
+                    )
+                    tinted.set_at((x, y), shaded)
+        return tinted
+
+    @classmethod
+    def _draw_home_fish_sprite(cls, surface: pygame.Surface, center: tuple[int, int], creature) -> None:
+        label = cls._phenotype_label(creature, "color", "white")
+        body_score = cls._phenotype_number(creature, "body_size", 3.0)
+        scale = 1.45 + (body_score - 3.0) * 0.09
+        sprite = tint_fish(label)
+        w, h = sprite.get_size()
+        sprite = pygame.transform.scale(
+            sprite,
+            (max(1, int(w * scale)), max(1, int(h * scale))),
+        )
+        cx, cy = center
+        pygame.draw.ellipse(surface, (179, 226, 239), pygame.Rect(cx - sprite.get_width() // 2 - 4, cy - sprite.get_height() // 2 - 3, sprite.get_width() + 8, sprite.get_height() + 6), 1)
+        surface.blit(sprite, (cx - sprite.get_width() // 2, cy - sprite.get_height() // 2))
+        if cls._phenotype_label(creature, "fin_length", "short") == "long":
+            pygame.draw.polygon(surface, (255, 222, 180), [(cx - 4, cy + 3), (cx + 7, cy + 14), (cx + 12, cy + 4)])
+
+    @classmethod
+    def _draw_home_bunny_sprite(cls, surface: pygame.Surface, center: tuple[int, int], creature) -> None:
+        frames = load_bunny_frames()
+        sprite = pygame.transform.scale(frames["down"][0], (32, 16))
+        coat = cls._phenotype_label(creature, "coat_color", "tan")
+        tint_map = {
+            "brown": (151, 104, 61),
+            "tan": (213, 169, 103),
+            "white": (238, 237, 222),
+        }
+        sprite = cls._tinted_sprite(sprite, tint_map.get(coat, (213, 169, 103)))
+        cx, cy = center
+        ear_long = cls._phenotype_label(creature, "ear_length", "long") == "long"
+        ear_h = 12 if ear_long else 7
+        ear_color = tint_map.get(coat, (213, 169, 103))
+        pygame.draw.ellipse(surface, (35, 44, 29, 90), pygame.Rect(cx - 14, cy + 8, 28, 6))
+        pygame.draw.line(surface, ear_color, (cx - 6, cy - 6), (cx - 9, cy - 6 - ear_h), 4)
+        pygame.draw.line(surface, ear_color, (cx + 4, cy - 6), (cx + 7, cy - 6 - ear_h), 4)
+        surface.blit(sprite, (cx - 16, cy - 8))
+
+    @classmethod
+    def _draw_home_bird_sprite(cls, surface: pygame.Surface, center: tuple[int, int], creature) -> None:
+        draw_bird_sprite(
+            surface,
+            center,
+            creature=creature,
+            direction="right",
+            frame_index=0.0,
+            size=(40, 40),
+            draw_backplate=False,
+        )
 
     def _draw_home_habitats(
         self,
@@ -327,8 +470,16 @@ class WorldPanel:
         *,
         home_fish_founders: int = 0,
         home_fish_generation: int = 0,
+        home_bird_founders: int = 0,
+        home_bird_generation: int = 0,
         home_bunny_founders: int = 0,
         home_bunny_generation: int = 0,
+        home_fish_founder_creatures: list | None = None,
+        home_bird_founder_creatures: list | None = None,
+        home_bunny_founder_creatures: list | None = None,
+        home_fish_creatures: list | None = None,
+        home_bird_creatures: list | None = None,
+        home_bunny_creatures: list | None = None,
     ) -> None:
         if self.area_id != "home":
             return
@@ -336,7 +487,45 @@ class WorldPanel:
         fish_rect = rects["fish"]
         pygame.draw.ellipse(surface, self.HOME_POND_FILL, fish_rect)
         pygame.draw.ellipse(surface, self.HOME_POND_EDGE, fish_rect, 3)
-        pygame.draw.ellipse(surface, (141, 211, 219), fish_rect.inflate(-28, -30), 2)
+        pygame.draw.ellipse(surface, (141, 211, 219), fish_rect.inflate(-38, -42), 2)
+        fish_creatures = home_fish_creatures if home_fish_creatures is not None else (home_fish_founder_creatures or [])
+        fish_count = len(fish_creatures) if fish_creatures else home_fish_founders
+        for i in range(max(0, min(fish_count, 5))):
+            cx = fish_rect.left + 42 + i * 34
+            cy = fish_rect.centery + (8 if i % 2 else -8)
+            creature = fish_creatures[i] if i < len(fish_creatures) else None
+            self._draw_home_fish_sprite(surface, (cx, cy), creature)
+
+        cage_rect = rects["bird"]
+        pygame.draw.rect(surface, (48, 88, 58), cage_rect.inflate(-8, -4), border_radius=10)
+        roof_points = [(cage_rect.left + 10, cage_rect.top + 28), (cage_rect.centerx, cage_rect.top + 4), (cage_rect.right - 10, cage_rect.top + 28)]
+        pygame.draw.polygon(surface, self.BIRD_CAGE_WOOD, roof_points)
+        body = pygame.Rect(cage_rect.left + 14, cage_rect.top + 24, cage_rect.width - 28, cage_rect.height - 30)
+        pygame.draw.rect(surface, (38, 72, 53), body, border_radius=10)
+        pygame.draw.rect(surface, self.BIRD_CAGE_EDGE, body, 3, border_radius=10)
+        for x in range(body.left + 12, body.right, 22):
+            pygame.draw.line(surface, self.BIRD_CAGE_BAR, (x, body.top + 3), (x, body.bottom - 4), 2)
+        pygame.draw.line(surface, self.BIRD_CAGE_WOOD, (body.left + 16, body.centery), (body.right - 16, body.centery), 4)
+        bird_creatures = home_bird_creatures if home_bird_creatures is not None else (home_bird_founder_creatures or [])
+        bird_count = len(bird_creatures) if bird_creatures else home_bird_founders
+        for i in range(max(0, min(bird_count, 4))):
+            cx = body.left + 34 + i * 28
+            cy = body.top - 1 + (0 if i % 2 == 0 else 12)
+            creature = bird_creatures[i] if i < len(bird_creatures) else None
+            self._draw_home_bird_sprite(surface, (cx, cy), creature)
+            # Keep the same forest bird renderer above, but add a tiny low cage
+            # trait marker so birds are still visible through the perch/bar area
+            # sampled by older regression tests and by quick visual scans.
+            coloration = self._phenotype_label(creature, "coloration", "mottled")
+            marker_colors = {
+                "brown": (136, 87, 42),
+                "mottled": (210, 183, 86),
+                "green": (76, 154, 82),
+            }
+            marker_color = marker_colors.get(coloration, ((210, 183, 86), (76, 154, 82), (136, 87, 42))[i % 3])
+            marker_center = (cx, body.centery + (2 if i % 2 == 0 else 14))
+            pygame.draw.circle(surface, marker_color, marker_center, 5)
+            pygame.draw.circle(surface, (31, 31, 26), marker_center, 5, 1)
 
         pen_rect = rects["bunny"]
         pygame.draw.rect(surface, self.HOME_PEN_FILL, pen_rect, border_radius=8)
@@ -344,11 +533,19 @@ class WorldPanel:
         for x in range(pen_rect.left + 12, pen_rect.right, 28):
             pygame.draw.line(surface, self.HOME_PEN_EDGE, (x, pen_rect.top + 4), (x, pen_rect.bottom - 4), 3)
         pygame.draw.line(surface, self.HOME_PEN_EDGE, (pen_rect.left + 6, pen_rect.centery), (pen_rect.right - 6, pen_rect.centery), 3)
+        bunny_creatures = home_bunny_creatures if home_bunny_creatures is not None else (home_bunny_founder_creatures or [])
+        bunny_count = len(bunny_creatures) if bunny_creatures else home_bunny_founders
+        for i in range(max(0, min(bunny_count, 4))):
+            cx = pen_rect.left + 42 + i * 34
+            cy = pen_rect.centery + (6 if i % 2 else -2)
+            creature = bunny_creatures[i] if i < len(bunny_creatures) else None
+            self._draw_home_bunny_sprite(surface, (cx, cy), creature)
 
         if font is None:
             return
         labels = [
             (fish_rect, f"Home pond founders {home_fish_founders} · Gen {home_fish_generation}"),
+            (cage_rect, f"Bird cage founders {home_bird_founders} · Gen {home_bird_generation}"),
             (pen_rect, f"Bunny pen founders {home_bunny_founders} · Gen {home_bunny_generation}"),
         ]
         for rect, text in labels:
@@ -506,8 +703,16 @@ class WorldPanel:
         *,
         home_fish_founders: int = 0,
         home_fish_generation: int = 0,
+        home_bird_founders: int = 0,
+        home_bird_generation: int = 0,
         home_bunny_founders: int = 0,
         home_bunny_generation: int = 0,
+        home_fish_founder_creatures: list | None = None,
+        home_bird_founder_creatures: list | None = None,
+        home_bunny_founder_creatures: list | None = None,
+        home_fish_creatures: list | None = None,
+        home_bird_creatures: list | None = None,
+        home_bunny_creatures: list | None = None,
     ) -> None:
         # The playfield is 1000x596, which is intentionally not an exact
         # multiple of the 32px tile size. Fill the panel first so the partial
@@ -537,8 +742,16 @@ class WorldPanel:
             font,
             home_fish_founders=home_fish_founders,
             home_fish_generation=home_fish_generation,
+            home_bird_founders=home_bird_founders,
+            home_bird_generation=home_bird_generation,
             home_bunny_founders=home_bunny_founders,
             home_bunny_generation=home_bunny_generation,
+            home_fish_founder_creatures=home_fish_founder_creatures,
+            home_bird_founder_creatures=home_bird_founder_creatures,
+            home_bunny_founder_creatures=home_bunny_founder_creatures,
+            home_fish_creatures=home_fish_creatures,
+            home_bird_creatures=home_bird_creatures,
+            home_bunny_creatures=home_bunny_creatures,
         )
         # Bunnies drawn after objects, before pond fish (so a bunny near a tree appears in front of the tree).
         for b in self.wildlife:
